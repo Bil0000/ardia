@@ -135,8 +135,10 @@ final class SidebarEdgeWatcher {
       if live {
         CGWarpMouseCursorPosition(CGPoint(x: edge.x, y: (NSScreen.screens.first?.frame.maxY ?? 0) - edge.y))
         CGAssociateMouseAndMouseCursorPosition(1)
-      } else {
+      } else if pointerOverride != nil {
         pointerOverride = edge
+      } else {
+        backgroundPoint = edge
       }
       return (edge, first ? (id, "stopped") : nil)
     }
