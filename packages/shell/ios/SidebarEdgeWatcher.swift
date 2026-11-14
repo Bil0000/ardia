@@ -112,6 +112,7 @@ final class SidebarEdgeWatcher {
   private func stopAtScreenEdge(_ point: NSPoint, live: Bool) -> (NSPoint, (id: String, note: String)?) {
     let pressed = buttonHeld || (live && NSEvent.pressedMouseButtons != 0)
     let tracking = !pressed && (!live || (NSApp.isActive && !LaunchConfig.shared.background))
+    let alreadyStopped = stoppedAtScreenEdge
     if let id = stoppedAtScreenEdge, !tracking || !restsAtScreenEdge(point, id, live: live) { stoppedAtScreenEdge = nil }
     let from = lastPoint
     lastPoint = tracking ? point : nil
@@ -128,7 +129,7 @@ final class SidebarEdgeWatcher {
         return (point, (id, "passed"))
       }
       let edge = NSPoint(x: Self.screenEdgeX(screen.frame, watch.right), y: point.y)
-      let first = !over.contains(id)
+      let first = alreadyStopped != id
       stoppedAtScreenEdge = id
       lastPoint = edge
       if live {
