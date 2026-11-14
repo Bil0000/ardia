@@ -13,8 +13,8 @@ import { ResizeHandle } from "../sidebar/ResizeHandle";
 import { dismissHoverIn } from "../../state/sidebar/hover";
 import { sidebarUi, useSidebarUi } from "../../state/sidebar/sidebarUi";
 import { peekHeld, watchHolds } from "../../state/app/transientUi";
-import { noteSidebarPeek, noteSidebarScreenEdge } from "../../state/telemetry/usage";
-import { noteSidebarPeekClosedWhileResizing, noteSidebarPeekResize, noteSidebarPeekRevealHeldBack, noteSidebarSlide } from "../../state/telemetry/dockCounts";
+import { noteSidebarPeek } from "../../state/telemetry/usage";
+import { noteSidebarPeekClosedWhileResizing, noteSidebarPeekResize, noteSidebarPeekRevealHeldBack, noteSidebarScreenEdge, noteSidebarSlide } from "../../state/telemetry/dockCounts";
 import { ProfileSwipe } from "./ProfileSwipe";
 import { ARC_HIDE_MS, DOCK_SLIDE, SHADOWS } from "./tokens";
 import {
