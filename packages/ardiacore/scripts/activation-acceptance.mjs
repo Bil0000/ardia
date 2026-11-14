@@ -840,14 +840,14 @@ try {
       await engine("tabs.devFocusPage", { tabId: a });
       steps.push({ step: "before", ...(await typedInA()) });
       await press("l", 37, ["command"]);
-      await sleep(600);
+      await until("the command bar open", () => evalApp(`return ac.store.getState().windowUi[${win}]?.panel.open || null`), 5000);
       await show(b);
       await sleep(400);
       await show(a);
       await sleep(900);
       steps.push({ step: "switched with the bar open", ...(await typedInA()) });
       await press("l", 37, ["command"]);
-      await sleep(600);
+      await until("the command bar open", () => evalApp(`return ac.store.getState().windowUi[${win}]?.panel.open || null`), 5000);
       const [x, y] = await evalApp(`return ac.sidebarRows.measureRow(${win}, ${JSON.stringify(a)}).then((r) => [Math.round(r.x + r.width / 2), Math.round(r.y + r.height / 2)])`);
       await engine("windows.dev", { window: n, action: `mouse:down:${x},${y}` });
       await sleep(80);
