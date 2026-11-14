@@ -145,8 +145,10 @@ final class SidebarEdgeWatcher {
   }
 
   private func restsAtScreenEdge(_ point: NSPoint, _ id: String, live: Bool) -> Bool {
-    guard let watch = watched[id], let window = WindowManager.shared.window(id), let screen = window.screen?.frame else { return false }
+    guard let watch = watched[id], let window = WindowManager.shared.window(id), let display = window.screen else { return false }
+    let screen = display.frame
     return screen.contains(point) && abs(point.x - Self.screenEdgeX(screen, watch.right)) < 1 && Self.inRows(point, window.frame)
+      && Self.sidebarSideAtScreenEdge(window, display, right: watch.right)
       && (!live || Self.windowNumber(at: Self.insideEdge(window.frame, watch.right, y: point.y)) == window.windowNumber)
   }
 
