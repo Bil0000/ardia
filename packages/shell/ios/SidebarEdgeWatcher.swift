@@ -44,7 +44,6 @@ final class SidebarEdgeWatcher {
     watched[id] = on ? Watch(hold: max(0, hold), right: right, whilePressed: whilePressed) : nil
     if on { unreported.insert(id) } else { over.remove(id) }
     if !on { overSince[id] = nil }
-    if !on, stoppedAtScreenEdge == id { stoppedAtScreenEdge = nil }
     if watched.isEmpty { return stop() }
     start()
     checkPointer()

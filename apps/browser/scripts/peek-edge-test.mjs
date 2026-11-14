@@ -172,6 +172,10 @@ try {
     assert.equal(await run(`return at(-30, 400).then(() => settle(700)).then(live);`), false, "the second push went on to the next display");
     assert.equal(await run(`return at(300, 400).then(() => settle(500)).then(() => at(-30, 400)).then(() => settle(500)).then(live);`), true, "stops again on the next crossing");
     assert.equal(await run(`return away();`), false);
+    const quick = await run(`const notes = []; const sub = globalThis.expo.modules.ArdiaAppWindows.addListener("onWindowEvent", (e) => e.screenEdge && notes.push(e.screenEdge));
+      return at(300, 400).then(() => settle(500)).then(() => at(-30, 400)).then(() => settle(200)).then(() => at(-30, 400)).then(() => settle(300)).then(() => (sub.remove(), notes));`);
+    assert.deepEqual(quick, ["stopped"], "a quick second push after the peek opened is the same stop, not a second one");
+    assert.equal(await run(`return away();`), false);
     await run(frame(10));
     const notes = await run(`const notes = []; const sub = globalThis.expo.modules.ArdiaAppWindows.addListener("onWindowEvent", (e) => e.screenEdge && notes.push(e.screenEdge));
       return at(300, 400).then(() => settle(500)).then(() => at(-5, 400)).then(() => settle(100)).then(() => at(-30, 400)).then(() => settle(100)).then(() => at(-30, 400)).then(() => settle(300)).then(() => (sub.remove(), notes));`);
