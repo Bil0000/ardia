@@ -58,7 +58,7 @@ export function cancelPanel(windowId: string) {
   setTimeout(() => {
     const now = useBrowser.getState();
     const active = activeTabId(now, windowId);
-    if (!active || !now.tabs[active]?.url || now.windowUi[windowId]?.panel.open) return;
+    if (!active || !now.tabs[active]?.url || now.windowUi[windowId]?.panel.open || now.peeks[windowId]) return;
     void webviews.get(active)?.focusIfUnfocused().then((focused) => {
       if (focused) notePageFocusReturnAfterBar();
     });
