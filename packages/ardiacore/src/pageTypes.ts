@@ -53,6 +53,7 @@ export type OpenWindowRequest = {
   site?: boolean;
   fromClick?: boolean;
   linkWait?: "matched" | "skipped" | "timedOut";
+  popup?: boolean;
 };
 
 export type BlockedPopup = { id: string; url: string; origin: string };
@@ -141,6 +142,7 @@ export type PasswordPrompt = {
   passwordLength: number;
   federation: string;
   usernames: string[];
+  offer?: string;
 };
 export type PasswordPromptAnswer = "save" | "update" | "never" | "nope" | "dismiss";
 export type AutofillPrompt = {
@@ -264,7 +266,7 @@ export type WebViewHandle = {
   openBlockedPopup(id: string, always?: boolean): Promise<void>;
   clearSiteData(): Promise<{ cookies: number | false; storage: boolean }>;
 
-  resolvePasswordPrompt(answer: PasswordPromptAnswer, edits?: { username?: string; password?: string }): Promise<void>;
+  resolvePasswordPrompt(answer: PasswordPromptAnswer, edits?: { username?: string; password?: string; offer?: string }): Promise<void>;
   resolveAutofillPrompt(id: number, answer: AutofillPromptAnswer): Promise<void>;
   executeExtensionAction(extensionId: string): Promise<ExtensionActionResult | null>;
 
