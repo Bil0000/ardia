@@ -42,7 +42,6 @@ final class SidebarEdgeWatcher {
   func watch(id: String, on: Bool, hold: CGFloat, right: Bool, whilePressed: Bool) {
     watched[id] = on ? Watch(rootHold: max(0, hold), right: right, whilePressed: whilePressed) : nil
     if on { unreported.insert(id) } else { over.remove(id) }
-    if !on, crossings[id]?.awaitingReturn != true { crossings[id] = nil }
     if watched.isEmpty { return stop() }
     start()
     checkPointer()
@@ -111,6 +110,8 @@ final class SidebarEdgeWatcher {
     let pressed = buttonHeld || (live && NSEvent.pressedMouseButtons != 0)
     let tracking = !pressed && (!live || (NSApp.isActive && !LaunchConfig.shared.background))
     if let id = returnedTo, !tracking || !nearScreenEdge(point, id, live: live) { returnedTo = nil }
+    let time = ProcessInfo.processInfo.systemUptime
+    crossings = crossings.filter { watched[$0.key] != nil || $0.value.awaitingReturn(at: time) }
     var notes: [String: String] = [:]
     for (id, watch) in watched {
       guard tracking, let window = WindowManager.shared.window(id), let screen = window.screen,
@@ -122,7 +123,7 @@ final class SidebarEdgeWatcher {
       }
       let edgeX = Self.screenEdgeX(screen.frame, watch.right)
       let past = watch.right ? point.x - edgeX : edgeX - point.x
-      guard let move = crossings[id, default: ScreenEdgeCrossing()].track(past: past, at: ProcessInfo.processInfo.systemUptime),
+      guard let move = crossings[id, default: ScreenEdgeCrossing()].track(past: past, at: time),
         !live || Self.windowNumber(at: Self.insideEdge(window.frame, watch.right, y: point.y)) == window.windowNumber
       else { continue }
       switch move {

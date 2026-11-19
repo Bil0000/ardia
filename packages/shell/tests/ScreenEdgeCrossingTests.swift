@@ -17,6 +17,11 @@ final class ScreenEdgeCrossingTests: XCTestCase {
 
   func testComingBackTooLateIsNoReturn() {
     XCTAssertEqual(moves([(-30, 10), (12, 10.01), (-10, 10.8)]), [.crossed])
+    var crossing = ScreenEdgeCrossing()
+    _ = crossing.track(past: -30, at: 10)
+    _ = crossing.track(past: 12, at: 10.01)
+    XCTAssertTrue(crossing.awaitingReturn(at: 10.5))
+    XCTAssertFalse(crossing.awaitingReturn(at: 10.8))
   }
 
   func testGoingPastTheReachIsNoReturn() {
