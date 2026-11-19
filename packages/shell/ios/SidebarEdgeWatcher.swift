@@ -4,7 +4,6 @@ import ArdiaCore
 final class SidebarEdgeWatcher {
   static let shared = SidebarEdgeWatcher()
   static let reach: CGFloat = 24
-  static let pushThrough: TimeInterval = 0.35
 
   var pointerOverride: NSPoint?
   private var backgroundPoint: NSPoint?
@@ -21,10 +20,8 @@ final class SidebarEdgeWatcher {
   private var unreported: Set<String> = []
   private var buttonHeld = false
   private var wasPressed = false
-  private var lastPoint: NSPoint?
-  private var stoppedAtScreenEdge: String?
-  private var crossing = ScreenEdgeCrossing()
-  private var overSince: [String: TimeInterval] = [:]
+  private var crossings: [String: ScreenEdgeCrossing] = [:]
+  private var returnedTo: String?
   private var localMonitor: Any?
   private var globalMonitor: Any?
   private var observers: [NSObjectProtocol] = []
@@ -45,7 +42,7 @@ final class SidebarEdgeWatcher {
   func watch(id: String, on: Bool, hold: CGFloat, right: Bool, whilePressed: Bool) {
     watched[id] = on ? Watch(rootHold: max(0, hold), right: right, whilePressed: whilePressed) : nil
     if on { unreported.insert(id) } else { over.remove(id) }
-    if !on { overSince[id] = nil }
+    if !on { crossings[id] = nil }
     if watched.isEmpty { return stop() }
     start()
     checkPointer()
@@ -77,8 +74,8 @@ final class SidebarEdgeWatcher {
     }
   }
 
-  private func check(_ pointer: NSPoint, live: Bool) {
-    let (point, screenEdge) = stopAtScreenEdge(pointer, live: live)
+  private func check(_ point: NSPoint, live: Bool) {
+    let screenEdge = crossScreenEdge(point, live: live)
     lazy var onDock = live && NSApp.isActive && isOnDock(point)
     let pressed = buttonHeld || (live && NSEvent.pressedMouseButtons != 0)
     if pressed && !wasPressed { pressedInside.formUnion(over.filter { watched[$0]?.whilePressed == true }) }
@@ -95,11 +92,10 @@ final class SidebarEdgeWatcher {
       let now = (pressed && pressedInside.contains(id)) || (watch.whilePressed || !pressed) && (isOver(point, of: window, watch, live: live, holding: over.contains(id))
         || (inColumn && over.contains(id) && onDock)
         || (inColumn && isOver(point, of: window, watch, live: false) && onDock && isTopBeneathDock(point, of: window, right: watch.right))
-        || stoppedAtScreenEdge == id)
+        || returnedTo == id)
       let fresh = unreported.remove(id) != nil
       let edgeNote = screenEdge?.id == id ? screenEdge?.note : nil
       guard fresh || now != over.contains(id) || edgeNote != nil else { continue }
-      if now, !over.contains(id) { overSince[id] = ProcessInfo.processInfo.systemUptime }
       if now { over.insert(id) } else { over.remove(id) }
       let inRoot = InterfaceScale.rootPoint(fromScreen: point, in: window)
       var event: [String: Any] = ["type": "sidebarEdge", "id": id, "over": now, "point": [inRoot.x, inRoot.y]]
@@ -110,66 +106,47 @@ final class SidebarEdgeWatcher {
     updateGlobalMonitor()
   }
 
-  private func stopAtScreenEdge(_ point: NSPoint, live: Bool) -> (NSPoint, (id: String, note: String)?) {
+  private func crossScreenEdge(_ point: NSPoint, live: Bool) -> (id: String, note: String)? {
     let pressed = buttonHeld || (live && NSEvent.pressedMouseButtons != 0)
     let tracking = !pressed && (!live || (NSApp.isActive && !LaunchConfig.shared.background))
-    let alreadyStopped = stoppedAtScreenEdge
-    if let id = stoppedAtScreenEdge, !tracking || !restsAtScreenEdge(point, id, live: live) { stoppedAtScreenEdge = nil }
-    let from = lastPoint
-    lastPoint = tracking ? point : nil
-    if tracking { crossing.track(point, at: ProcessInfo.processInfo.systemUptime) } else { crossing.forget() }
-    guard let from, lastPoint != nil else { return (point, nil) }
+    if let id = returnedTo, !tracking || !nearScreenEdge(point, id) { returnedTo = nil }
+    var note: (id: String, note: String)?
     for (id, watch) in watched {
-      guard let window = WindowManager.shared.window(id), let screen = window.screen,
+      guard tracking, let window = WindowManager.shared.window(id), let screen = window.screen,
         window.isVisible, !window.isMiniaturized, !window.styleMask.contains(.fullScreen),
-        Self.crossesScreenEdge(from, point, screen.frame, watch.right), Self.inRows(point, window.frame),
-        Self.sidebarSideAtScreenEdge(window, screen, right: watch.right),
+        Self.inRows(point, window.frame), Self.sidebarSideAtScreenEdge(window, screen, right: watch.right)
+      else {
+        crossings[id] = nil
+        continue
+      }
+      let edgeX = Self.screenEdgeX(screen.frame, watch.right)
+      let past = watch.right ? point.x - edgeX : edgeX - point.x
+      guard let move = crossings[id, default: ScreenEdgeCrossing()].track(past: past, at: ProcessInfo.processInfo.systemUptime),
         !live || Self.windowNumber(at: Self.insideEdge(window.frame, watch.right, y: point.y)) == window.windowNumber
       else { continue }
-      let edgeX = Self.screenEdgeX(screen.frame, watch.right)
-      let first = alreadyStopped != id
-      if first {
-        crossing.startPush()
-        if crossing.isFling(right: watch.right) { return (point, (id, "flung")) }
-      } else if crossing.push(by: watch.right ? point.x - edgeX : edgeX - point.x) {
-        stoppedAtScreenEdge = nil
-        return (point, (id, "passed"))
+      switch move {
+      case .crossed:
+        if returnedTo == id { returnedTo = nil }
+        note = (id, "crossed")
+      case .returned:
+        returnedTo = id
+        note = (id, "returned")
       }
-      if over.contains(id), let since = overSince[id], ProcessInfo.processInfo.systemUptime - since >= Self.pushThrough {
-        stoppedAtScreenEdge = nil
-        return (point, (id, "passed"))
-      }
-      let edge = NSPoint(x: edgeX, y: point.y)
-      stoppedAtScreenEdge = id
-      lastPoint = edge
-      if live {
-        CGWarpMouseCursorPosition(CGPoint(x: edge.x, y: (NSScreen.screens.first?.frame.maxY ?? 0) - edge.y))
-        CGAssociateMouseAndMouseCursorPosition(1)
-      } else if pointerOverride != nil {
-        pointerOverride = edge
-      } else {
-        backgroundPoint = edge
-      }
-      return (edge, first ? (id, "stopped") : nil)
     }
-    return (point, nil)
+    return note
   }
 
-  private func restsAtScreenEdge(_ point: NSPoint, _ id: String, live: Bool) -> Bool {
+  private func nearScreenEdge(_ point: NSPoint, _ id: String) -> Bool {
     guard let watch = watched[id], let window = WindowManager.shared.window(id), let display = window.screen else { return false }
-    let screen = display.frame
-    return screen.contains(point) && abs(point.x - Self.screenEdgeX(screen, watch.right)) < 1 && Self.inRows(point, window.frame)
-      && Self.sidebarSideAtScreenEdge(window, display, right: watch.right)
-      && (!live || Self.windowNumber(at: Self.insideEdge(window.frame, watch.right, y: point.y)) == window.windowNumber)
+    let reach = max(watch.hold, ScreenEdgeCrossing.reach)
+    let frame = window.frame
+    let inside = watch.right ? point.x >= frame.maxX - reach && point.x < frame.maxX : point.x >= frame.minX && point.x < frame.minX + reach
+    return inside && Self.inRows(point, frame) && Self.sidebarSideAtScreenEdge(window, display, right: watch.right)
   }
 
   private static func sidebarSideAtScreenEdge(_ window: NSWindow, _ screen: NSScreen, right: Bool) -> Bool {
     let inside = right ? window.frame.maxX <= screen.frame.maxX : window.frame.minX >= screen.frame.minX
     return inside && besideScreenEdge(window, screen, right: right)
-  }
-
-  private static func crossesScreenEdge(_ from: NSPoint, _ to: NSPoint, _ screen: NSRect, _ right: Bool) -> Bool {
-    screen.contains(from) && (right ? to.x >= screen.maxX : to.x < screen.minX)
   }
 
   private static func screenEdgeX(_ screen: NSRect, _ right: Bool) -> CGFloat {
@@ -346,16 +323,14 @@ final class SidebarEdgeWatcher {
     over = []
     pressedInside = []
     unreported = []
-    stoppedAtScreenEdge = nil
-    crossing.forget()
-    overSince = [:]
+    crossings = [:]
+    returnedTo = nil
     pointerOverride = nil
     backgroundPoint = nil
     stop()
   }
 
   private func stop() {
-    lastPoint = nil
     for monitor in [localMonitor, globalMonitor].compactMap({ $0 }) { NSEvent.removeMonitor(monitor) }
     localMonitor = nil
     globalMonitor = nil
