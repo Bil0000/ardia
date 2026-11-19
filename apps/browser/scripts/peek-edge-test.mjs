@@ -191,7 +191,8 @@ try {
     assert.equal(back.live, true, "peeks");
     assert.equal(await run(`return at(80, 400).then(() => settle(500)).then(live);`), true, "and stays out with the pointer over it");
     assert.equal(await run(`return at(-30, 400).then(() => settle(60)).then(() => !!globalThis.acLayout.peek.w1?.leaving);`), true, "crossing to the next display starts closing it at once, not after the 200 ms grace");
-    assert.equal(await run(`return settle(700).then(live);`), false, "and it closes");
+    assert.equal(await run(`return at(4, 400).then(() => settle(500)).then(live);`), true, "coming straight back while it closes opens it again");
+    assert.equal(await run(`return at(-30, 400).then(() => settle(700)).then(live);`), false, "and crossing again closes it");
     assert.equal(await run(`return away();`), false);
     await run(frame(200));
     assert.equal(await run(`return at(300, 400).then(() => at(-250, 400)).then(() => settle(500)).then(live);`), false, "a window away from the screen edge lets the pointer cross");

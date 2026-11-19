@@ -42,7 +42,7 @@ final class SidebarEdgeWatcher {
   func watch(id: String, on: Bool, hold: CGFloat, right: Bool, whilePressed: Bool) {
     watched[id] = on ? Watch(rootHold: max(0, hold), right: right, whilePressed: whilePressed) : nil
     if on { unreported.insert(id) } else { over.remove(id) }
-    if !on { crossings[id] = nil }
+    if !on, crossings[id]?.awaitingReturn != true { crossings[id] = nil }
     if watched.isEmpty { return stop() }
     start()
     checkPointer()
@@ -85,6 +85,7 @@ final class SidebarEdgeWatcher {
         watched[id] = nil
         over.remove(id)
         unreported.remove(id)
+        crossings[id] = nil
         continue
       }
       if !pressed { pressedInside.remove(id) }
@@ -94,7 +95,7 @@ final class SidebarEdgeWatcher {
         || (inColumn && isOver(point, of: window, watch, live: false) && onDock && isTopBeneathDock(point, of: window, right: watch.right))
         || returnedTo == id)
       let fresh = unreported.remove(id) != nil
-      let edgeNote = screenEdge?.id == id ? screenEdge?.note : nil
+      let edgeNote = screenEdge[id]
       guard fresh || now != over.contains(id) || edgeNote != nil else { continue }
       if now { over.insert(id) } else { over.remove(id) }
       let inRoot = InterfaceScale.rootPoint(fromScreen: point, in: window)
@@ -106,11 +107,11 @@ final class SidebarEdgeWatcher {
     updateGlobalMonitor()
   }
 
-  private func crossScreenEdge(_ point: NSPoint, live: Bool) -> (id: String, note: String)? {
+  private func crossScreenEdge(_ point: NSPoint, live: Bool) -> [String: String] {
     let pressed = buttonHeld || (live && NSEvent.pressedMouseButtons != 0)
     let tracking = !pressed && (!live || (NSApp.isActive && !LaunchConfig.shared.background))
     if let id = returnedTo, !tracking || !nearScreenEdge(point, id) { returnedTo = nil }
-    var note: (id: String, note: String)?
+    var notes: [String: String] = [:]
     for (id, watch) in watched {
       guard tracking, let window = WindowManager.shared.window(id), let screen = window.screen,
         window.isVisible, !window.isMiniaturized, !window.styleMask.contains(.fullScreen),
@@ -127,13 +128,13 @@ final class SidebarEdgeWatcher {
       switch move {
       case .crossed:
         if returnedTo == id { returnedTo = nil }
-        note = (id, "crossed")
+        notes[id] = "crossed"
       case .returned:
         returnedTo = id
-        note = (id, "returned")
+        notes[id] = "returned"
       }
     }
-    return note
+    return notes
   }
 
   private func nearScreenEdge(_ point: NSPoint, _ id: String) -> Bool {

@@ -11,6 +11,7 @@ struct ScreenEdgeCrossing {
 
   private var wasInside = false
   private var leftAt: TimeInterval?
+  var awaitingReturn: Bool { leftAt != nil }
 
   mutating func track(past: CGFloat, at time: TimeInterval) -> Move? {
     let inside = past <= 0
