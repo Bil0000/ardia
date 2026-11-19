@@ -131,6 +131,7 @@ final class SidebarEdgeWatcher {
         if returnedTo == id { returnedTo = nil }
         notes[id] = "crossed"
       case .returned:
+        guard nearScreenEdge(point, id, live: live) else { continue }
         returnedTo = id
         notes[id] = "returned"
       }
