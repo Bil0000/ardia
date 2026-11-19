@@ -126,7 +126,10 @@ final class SidebarEdgeWatcher {
       guard let move = crossings[id, default: ScreenEdgeCrossing()].track(past: past, at: time) else { continue }
       switch move {
       case .crossed:
-        guard !live || Self.windowNumber(at: Self.insideEdge(window.frame, watch.right, y: point.y)) == window.windowNumber else { continue }
+        if live {
+          let hit = NSApp.window(withWindowNumber: Self.windowNumber(at: Self.insideEdge(window.frame, watch.right, y: point.y)))
+          guard hit === window || hit?.parent === window else { continue }
+        }
         if returnedTo == id { returnedTo = nil }
         notes[id] = "crossed"
       case .returned:
