@@ -1,7 +1,7 @@
 import { visible } from "../scope.ts";
 import type { ScopeState } from "../scopeState.ts";
 import { fromLegacy } from "./legacy.ts";
-import { lastVisitOf, type BookmarkValue, type DeviceTabs, type DeviceValue, type HistoryValue } from "./adapters.ts";
+import { folderChildren, lastVisitOf, type BookmarkValue, type DeviceTabs, type DeviceValue, type HistoryValue } from "./adapters.ts";
 import { themeOf, type ViewTheme } from "./theme.ts";
 
 export type { ViewTheme, ViewThemeLook, ViewThemeStop, ViewThemeTexture } from "./theme.ts";
@@ -241,18 +241,7 @@ export function bookmarkTree(scope: ScopeState | undefined): ViewBookmark[] {
     const p = typeof v.p === "string" ? v.p : "other";
     parentOf.set(key, p === "bar" || p === "other" ? p : values.get(p)?.k === "f" ? p : "other");
   }
-  for (const key of [...values.keys()].sort()) {
-    const seen = new Set([key]);
-    for (let at = parentOf.get(key)!; parentOf.has(at); at = parentOf.get(at)!) {
-      if (seen.has(at)) {
-        parentOf.set(key, "other");
-        break;
-      }
-      seen.add(at);
-    }
-  }
-  const children = new Map<string, string[]>();
-  for (const key of values.keys()) children.set(parentOf.get(key)!, [...(children.get(parentOf.get(key)!) ?? []), key]);
+  const children = folderChildren(parentOf, [...values.keys()].sort());
   const sorted = (parent: string) =>
     (children.get(parent) ?? []).map((key) => ({ key, pos: str(values.get(key)!.pos) })).sort(byPosThenKey).map((x) => x.key);
   const node = (key: string, root: "bar" | "other" | null): ViewBookmark => {
@@ -264,10 +253,21 @@ export function bookmarkTree(scope: ScopeState | undefined): ViewBookmark[] {
       url: folder ? null : str(v.u),
       added: typeof v.a === "number" && Number.isFinite(v.a) ? v.a : 0,
       root,
-      children: folder ? sorted(key).map((k) => node(k, null)) : null,
+      children: folder ? [] : null,
     };
   };
-  return [...sorted("bar").map((k) => node(k, "bar")), ...sorted("other").map((k) => node(k, "other"))];
+  const tree = [...sorted("bar").map((k) => node(k, "bar")), ...sorted("other").map((k) => node(k, "other"))];
+  const folders = [...tree];
+  while (folders.length) {
+    const folder = folders.pop()!;
+    if (!folder.children) continue;
+    for (const k of sorted(folder.key)) {
+      const child = node(k, null);
+      folder.children.push(child);
+      folders.push(child);
+    }
+  }
+  return tree;
 }
 
 export function historyList(scope: ScopeState | undefined): ViewHistory[] {

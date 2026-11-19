@@ -14,7 +14,7 @@ const store = () => useBrowser.getState();
 
 const HISTORY_WINDOW_MS = 90 * 86_400_000;
 
-const lastVisitOf = (v: HistoryValue) => Math.max(0, ...v.vt);
+const lastVisitOf = (v: HistoryValue) => v.vt.reduce((m, t) => Math.max(m, t), 0);
 const SAME_VISIT_MS = 1;
 const sameVisits = (a: number[], b: number[]) => a.length === b.length && a.every((t, i) => Math.abs(b[i]! - t) <= SAME_VISIT_MS);
 
