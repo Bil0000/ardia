@@ -6,7 +6,7 @@ import { compact, syncScope, visible } from "../scope.ts";
 import { emptyScope, type Adapter, type SyncRecord, type Listing, type LogFile, type ScopeState, type Transport } from "../scopeState.ts";
 import { companionAcknowledge, companionAddBookmark, companionRemoveBookmark, companionRemovalsDone, companionSend, runCompanionCycle, type CycleInput } from "./cycle.ts";
 import { companionLoad, companionUnload, type CompanionState, type Host } from "./state.ts";
-import { bookmarkTree, buildView, type ViewBookmark } from "./view.ts";
+import { buildView, type ViewBookmark } from "./view.ts";
 import type { LocalTab, LocalVisit } from "./adapters.ts";
 
 const DAY = 86_400_000;
@@ -1225,12 +1225,14 @@ test("pulling 20,000 history deletions lists each once and acknowledging them cl
 });
 
 test("a 20,000-deep folder chain builds the phone's bookmark tree without overflowing or a walk per folder", () => {
+  const app = emptyScope();
+  app.records[`prof:${P1}`] = { h: "a", v: { n: "Personal", c: "blue", i: null, d: true }, o: ["x", 1] };
   const scope = emptyScope();
   const depth = 20_000;
   for (let i = 0; i < depth; i++) scope.records[`bm:d${String(i).padStart(5, "0")}`] = { h: "a", v: { k: "f", p: i ? `d${String(i - 1).padStart(5, "0")}` : "other", t: `D${i}`, a: 1, pos: "1" }, o: ["x", 1] };
   const started = performance.now();
   let levels = 0;
-  for (let at: ViewBookmark | undefined = bookmarkTree(scope)[0]; at; at = at.children?.[0]) levels++;
+  for (let at: ViewBookmark | undefined = buildView({ app, [`p:${P1}`]: scope }, PHONE).profiles[0]!.bookmarks[0]; at; at = at.children?.[0]) levels++;
   assert.equal(levels, depth);
   assert.ok(performance.now() - started < 5_000, `${Math.round(performance.now() - started)} ms`);
 });
