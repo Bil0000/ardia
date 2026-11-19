@@ -123,11 +123,10 @@ final class SidebarEdgeWatcher {
       }
       let edgeX = Self.screenEdgeX(screen.frame, watch.right)
       let past = watch.right ? point.x.rounded(.down) - edgeX : edgeX - point.x.rounded(.down)
-      guard let move = crossings[id, default: ScreenEdgeCrossing()].track(past: past, at: time),
-        !live || Self.windowNumber(at: Self.insideEdge(window.frame, watch.right, y: point.y)) == window.windowNumber
-      else { continue }
+      guard let move = crossings[id, default: ScreenEdgeCrossing()].track(past: past, at: time) else { continue }
       switch move {
       case .crossed:
+        guard !live || Self.windowNumber(at: Self.insideEdge(window.frame, watch.right, y: point.y)) == window.windowNumber else { continue }
         if returnedTo == id { returnedTo = nil }
         notes[id] = "crossed"
       case .returned:
@@ -337,6 +336,7 @@ final class SidebarEdgeWatcher {
   }
 
   private func stop() {
+    returnedTo = nil
     for monitor in [localMonitor, globalMonitor].compactMap({ $0 }) { NSEvent.removeMonitor(monitor) }
     localMonitor = nil
     globalMonitor = nil
