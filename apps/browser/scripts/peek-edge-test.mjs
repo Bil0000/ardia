@@ -211,6 +211,8 @@ try {
     const screenWidth = Number(execFileSync("osascript", ["-l", "JavaScript", "-e", 'ObjC.import("AppKit"); $.NSScreen.screens.objectAtIndex(0).frame.size.width']).toString());
     await run(`st().updateSettings({ sidebarSide: "right" }); return globalThis.expo.modules.ArdiaDev.devSetWindowFrame("w1", [${screenWidth - WIDTH}, 100, ${WIDTH}, ${HEIGHT}]).then(() => settle(600));`);
     try {
+      assert.deepEqual(await run(`const notes = []; const sub = globalThis.expo.modules.ArdiaAppWindows.addListener("onWindowEvent", (e) => e.screenEdge && notes.push(e.screenEdge));
+        return at(${WIDTH - 300}, 400).then(() => settle(120)).then(() => at(${WIDTH - 0.5}, 400)).then(() => settle(200)).then(() => { sub.remove(); return notes; });`), [], "half a point inside the right edge is still this display");
       assert.equal(await run(`return at(${WIDTH - 300}, 400).then(() => settle(120)).then(() => at(${WIDTH + 30}, 400)).then(() => settle(500)).then(live);`), false, "crossed the right screen edge without peeking");
       assert.equal(await run(`return at(${WIDTH - 300}, 400).then(() => settle(120)).then(() => at(${WIDTH + 30}, 400)).then(() => settle(150)).then(() => at(${WIDTH - 4}, 400)).then(() => settle(500)).then(live);`), true, "coming straight back peeks");
     } finally {

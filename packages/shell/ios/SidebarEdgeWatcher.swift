@@ -122,7 +122,7 @@ final class SidebarEdgeWatcher {
         continue
       }
       let edgeX = Self.screenEdgeX(screen.frame, watch.right)
-      let past = watch.right ? point.x - edgeX : edgeX - point.x
+      let past = watch.right ? point.x.rounded(.down) - edgeX : edgeX - point.x.rounded(.down)
       guard let move = crossings[id, default: ScreenEdgeCrossing()].track(past: past, at: time),
         !live || Self.windowNumber(at: Self.insideEdge(window.frame, watch.right, y: point.y)) == window.windowNumber
       else { continue }
