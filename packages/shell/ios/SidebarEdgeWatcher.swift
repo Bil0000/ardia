@@ -110,7 +110,7 @@ final class SidebarEdgeWatcher {
   private func crossScreenEdge(_ point: NSPoint, live: Bool) -> [String: String] {
     let pressed = buttonHeld || (live && NSEvent.pressedMouseButtons != 0)
     let tracking = !pressed && (!live || (NSApp.isActive && !LaunchConfig.shared.background))
-    if let id = returnedTo, !tracking || !nearScreenEdge(point, id) { returnedTo = nil }
+    if let id = returnedTo, !tracking || !nearScreenEdge(point, id, live: live) { returnedTo = nil }
     var notes: [String: String] = [:]
     for (id, watch) in watched {
       guard tracking, let window = WindowManager.shared.window(id), let screen = window.screen,
@@ -137,12 +137,15 @@ final class SidebarEdgeWatcher {
     return notes
   }
 
-  private func nearScreenEdge(_ point: NSPoint, _ id: String) -> Bool {
+  private func nearScreenEdge(_ point: NSPoint, _ id: String, live: Bool) -> Bool {
     guard let watch = watched[id], let window = WindowManager.shared.window(id), let display = window.screen else { return false }
     let reach = max(watch.hold, ScreenEdgeCrossing.reach)
     let frame = window.frame
     let inside = watch.right ? point.x >= frame.maxX - reach && point.x < frame.maxX : point.x >= frame.minX && point.x < frame.minX + reach
-    return inside && Self.inRows(point, frame) && Self.sidebarSideAtScreenEdge(window, display, right: watch.right)
+    guard inside, Self.inRows(point, frame), Self.sidebarSideAtScreenEdge(window, display, right: watch.right) else { return false }
+    guard live else { return true }
+    let hit = NSApp.window(withWindowNumber: Self.windowNumber(at: point))
+    return hit === window || hit?.parent === window
   }
 
   private static func sidebarSideAtScreenEdge(_ window: NSWindow, _ screen: NSScreen, right: Bool) -> Bool {
