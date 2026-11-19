@@ -87,3 +87,11 @@ test("an old local row is ignored before its synced JSON is read: a malformed on
   assert.equal(ignore(`h:${url}`), true);
   assert.equal(cached.size, before);
 });
+
+test("a synced history record with 200,000 visit times, from a damaged or foreign file, is read as expired or kept without overflowing", () => {
+  const now = Date.now();
+  const recent = Array.from({ length: 200_000 }, (_, i) => now - DAY + i);
+  const old = recent.map((t) => t - 120 * DAY);
+  assert.equal(adapters.historyExpired("h:https://long.example/", { t: "Long", n: recent.length, vt: recent }, now), false);
+  assert.equal(adapters.historyExpired("h:https://long.example/", { t: "Long", n: old.length, vt: old }, now), true);
+});

@@ -77,9 +77,9 @@ export function bookmarksAdapter(profileId: string): Adapter {
         return key && bookmarkUuidFor(key) === id ? key : id;
       };
       const seen = new Set<string>();
-      const walk = (folderId: string) => {
+      const open = (folderId: string) => {
         const folder = b.nodes[folderId];
-        if (folder?.kind !== "folder" || seen.has(folderId)) return;
+        if (folder?.kind !== "folder" || seen.has(folderId)) return null;
         seen.add(folderId);
         const parent = keyOf(folderId);
         const children = folder.children.filter((id) => b.nodes[id]);
@@ -89,21 +89,32 @@ export function bookmarksAdapter(profileId: string): Adapter {
             return known?.p === parent ? known.pos : undefined;
           }),
         );
-        children.forEach((id, i) => {
+        return { parent, children, positions, next: 0 };
+      };
+      for (const root of [roots.bar, roots.other]) {
+        const first = open(root);
+        const stack = first ? [first] : [];
+        while (stack.length) {
+          const top = stack.at(-1)!;
+          if (top.next === top.children.length) {
+            stack.pop();
+            continue;
+          }
+          const i = top.next++;
+          const id = top.children[i]!;
           const node = b.nodes[id]!;
           values.set(`${BOOKMARK}${keyOf(id)}`, {
             k: node.kind === "url" ? "u" : "f",
-            p: parent,
+            p: top.parent,
             t: node.title,
             ...(node.kind === "url" ? { u: node.url } : {}),
             a: node.addedAt,
-            pos: positions[i]!,
+            pos: top.positions[i]!,
           } satisfies BookmarkValue);
-          if (node.kind === "folder") walk(id);
-        });
-      };
-      walk(roots.bar);
-      walk(roots.other);
+          const inner = node.kind === "folder" ? open(id) : null;
+          if (inner) stack.push(inner);
+        }
+      }
       return { values };
     },
     apply: (visible) => {
