@@ -1,8 +1,8 @@
 import { takeCleanUpCounts } from "./cleanUpCounts";
 import type { ConsentToken } from "./choice";
-import { countFor } from "./countFor";
+import { countFor, fieldName } from "./countFor";
 
-const none = () => ({ captureIndicatorsCleared: 0, mediaCardsCleared: 0, pinnedTabsSleptByMemorySaver: 0, tabsSleptOverBudget: 0, tabsSleptOverBudgetReopened: 0, tabsOverBudgetSkippedLoading: 0, tabsOverBudgetAsksPassedOn: 0, topAppsKeptRunning: 0, topAppWindowsClosedFromNewTab: 0, topAppsUnloadedFromMenu: 0, tabsSleptFromMenu: 0, groupsSleptFromMenu: 0, menuSleepsKeptAwake: 0 });
+const none = () => ({ captureIndicatorsCleared: 0, mediaCardsCleared: 0, pinnedTabsSleptByMemorySaver: 0, tabsSleptOverBudget: 0, tabsSleptOverBudgetReopened: 0, tabsOverBudgetSkippedLoading: 0, tabsOverBudgetAsksPassedOn: 0, tabsOverBudgetKeptNotifications: 0, tabsOverBudgetKeptBackgroundActivity: 0, tabsOverBudgetKeptOther: 0, topAppsKeptRunning: 0, topAppWindowsClosedFromNewTab: 0, topAppsUnloadedFromMenu: 0, tabsSleptFromMenu: 0, groupsSleptFromMenu: 0, menuSleepsKeptAwake: 0 });
 
 let pending = none();
 
@@ -24,6 +24,14 @@ export function noteTabSleptOverBudget(consent?: ConsentToken | null) {
 
 export function noteTabSleptOverBudgetReopened() {
   pending.tabsSleptOverBudgetReopened++;
+}
+
+const NOTIFICATIONS_ENABLED = 13;
+const BACKGROUND_ACTIVITY = 25;
+
+export function noteTabKeptOverBudget(keptBy: readonly number[], consent?: ConsentToken | null) {
+  const key = keptBy.includes(NOTIFICATIONS_ENABLED) ? "tabsOverBudgetKeptNotifications" : keptBy.includes(BACKGROUND_ACTIVITY) ? "tabsOverBudgetKeptBackgroundActivity" : "tabsOverBudgetKeptOther";
+  countFor(consent, () => void pending[key]++, { [fieldName(key)]: 1 });
 }
 
 export function noteBudgetSweep(skippedLoading: number, asksPassedOn: number) {
@@ -84,5 +92,8 @@ export function takeTabSleepCounts() {
     tabs_slept_over_budget_reopened: taken.tabsSleptOverBudgetReopened,
     tabs_over_budget_skipped_loading: taken.tabsOverBudgetSkippedLoading,
     tabs_over_budget_asks_passed_on: taken.tabsOverBudgetAsksPassedOn,
+    tabs_over_budget_kept_notifications: taken.tabsOverBudgetKeptNotifications,
+    tabs_over_budget_kept_background_activity: taken.tabsOverBudgetKeptBackgroundActivity,
+    tabs_over_budget_kept_other: taken.tabsOverBudgetKeptOther,
   };
 }

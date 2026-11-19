@@ -2,7 +2,7 @@ import { isKeepActiveSiteValid, setMemorySaver, type MemorySaverMode } from "../
 import { useBrowser } from "../browser/store";
 import type { Settings } from "../settings/settings";
 
-type MemorySaverSettings = Pick<Settings, "memorySaver" | "memorySaverMode" | "keepActiveSites">;
+type MemorySaverSettings = Pick<Settings, "memorySaver" | "memorySaverMode" | "sleepTabsAfter" | "keepActiveSites">;
 
 export type { MemorySaverMode };
 
@@ -12,14 +12,14 @@ const store = () => useBrowser.getState();
 
 export function memorySaverRequest(settings: MemorySaverSettings) {
   return {
-    state: settings.memorySaver === false ? ("off" as const) : ("on" as const),
+    state: settings.memorySaver === false || (settings.sleepTabsAfter ?? "auto") !== "auto" ? ("off" as const) : ("on" as const),
     aggressiveness: MODES.includes(settings.memorySaverMode) ? settings.memorySaverMode : ("balanced" as const),
     sites: Array.isArray(settings.keepActiveSites) ? settings.keepActiveSites.filter((site) => typeof site === "string") : [],
   };
 }
 
 const changed = (a: MemorySaverSettings, b: MemorySaverSettings) =>
-  a.memorySaver !== b.memorySaver || a.memorySaverMode !== b.memorySaverMode || a.keepActiveSites !== b.keepActiveSites;
+  a.memorySaver !== b.memorySaver || a.memorySaverMode !== b.memorySaverMode || a.sleepTabsAfter !== b.sleepTabsAfter || a.keepActiveSites !== b.keepActiveSites;
 
 let started = false;
 

@@ -57,6 +57,15 @@ const MEMORY_SAVER_LEVELS: Record<MemorySaverPreset, { title: string; descriptio
 };
 const MEMORY_SAVER_PRESETS = Object.keys(MEMORY_SAVER_LEVELS) as MemorySaverPreset[];
 
+const SLEEP_TABS_AFTER: { value: Settings["sleepTabsAfter"]; title: string }[] = [
+  { value: "auto", title: "Automatically" },
+  { value: "15m", title: "After 15 minutes" },
+  { value: "30m", title: "After 30 minutes" },
+  { value: "1h", title: "After 1 hour" },
+  { value: "2h", title: "After 2 hours" },
+  { value: "4h", title: "After 4 hours" },
+];
+
 const UNLOAD_AFTER: Record<Settings["unloadProfilesAfter"], string> = { never: "", "5m": "5 minutes", "15m": "15 minutes", "1h": "an hour", "2h": "2 hours" };
 
 function memorySaverLevel(s: MemorySaverKeys): MemorySaverLevel {
@@ -96,6 +105,7 @@ function PerformanceSection() {
   const keys = { memorySaver, memorySaverMode, loadProfilesWhenOpened, unloadProfilesAfter };
   const batterySaverWhen = useSettings((s) => s.batterySaverWhen);
   const keepActiveSites = useSettings((s) => s.keepActiveSites);
+  const sleepTabsAfter = useSettings((s) => s.sleepTabsAfter);
   const level = memorySaverLevel(keys);
   const options = [...MEMORY_SAVER_PRESETS.map((value) => ({ value: value as MemorySaverLevel, title: MEMORY_SAVER_LEVELS[value].title })), ...(level === "custom" ? [{ value: "custom" as const, title: "Custom" }] : [])];
   return (
@@ -104,6 +114,9 @@ function PerformanceSection() {
       <Group>
         <Row anchor="advanced.memorySaver" description={level === "custom" ? customDescription(keys) : MEMORY_SAVER_LEVELS[level].description()}>
           <PopUp value={level} options={options} onChange={(v) => v !== "custom" && updateSettings(MEMORY_SAVER_LEVELS[v].settings)} minWidth={190} />
+        </Row>
+        <Row anchor="advanced.sleepTabsAfter">
+          <PopUp value={sleepTabsAfter} options={SLEEP_TABS_AFTER} onChange={(v) => updateSettings({ sleepTabsAfter: v })} minWidth={190} />
         </Row>
         <Row anchor="advanced.keepActiveSites">
           <Button title="Add Site…" icon="plus" onPress={() => showSettingsSheet(<KeepActiveSiteSheet />)} />

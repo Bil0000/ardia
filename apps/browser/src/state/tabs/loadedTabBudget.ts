@@ -9,7 +9,7 @@ import { isPlaying, useMedia } from "../media/media";
 import { withSharedFamily } from "../pins/pinShare";
 import type { Settings } from "../settings/settings";
 import { withPinnedPanes } from "../splits/splits";
-import { noteBudgetSweep, noteTabSleptOverBudget, noteTabSleptOverBudgetReopened } from "../telemetry/tabSleepCounts";
+import { noteBudgetSweep, noteTabKeptOverBudget, noteTabSleptOverBudget, noteTabSleptOverBudgetReopened } from "../telemetry/tabSleepCounts";
 import { consentToken } from "../telemetry/client";
 import { hasPage } from "./pageSession";
 import { usePages } from "./pageState";
@@ -28,6 +28,7 @@ const MODES: Record<Settings["memorySaverMode"], { floor: number; perGib: number
   maximum: { floor: 5, perGib: 0.5, hiddenMs: 30 * MINUTE },
 };
 const HIDDEN_UNDER_PRESSURE_MS = 10 * MINUTE;
+const SLEEP_AFTER_MS: Record<Exclude<Settings["sleepTabsAfter"], "auto">, number> = { "15m": 15 * MINUTE, "30m": 30 * MINUTE, "1h": 60 * MINUTE, "2h": 120 * MINUTE, "4h": 240 * MINUTE };
 const SLEEPS_PER_SWEEP = 4;
 const ANSWER_WITHIN_MS = 1500;
 const ASK_AGAIN_MS = 10 * MINUTE;
@@ -35,8 +36,10 @@ const KEPT_RECENTLY_MS = 60 * MINUTE;
 const REOPENED_SOON_MS = 30 * MINUTE;
 const RECENTLY_VISIBLE = 7;
 
-export function loadedTabBudget(settings: Pick<Settings, "memorySaver" | "memorySaverMode">, sys: SystemState | null): LoadedTabBudget | null {
+export function loadedTabBudget(settings: Pick<Settings, "memorySaver" | "memorySaverMode" | "sleepTabsAfter">, sys: SystemState | null): LoadedTabBudget | null {
   if (!PLATFORM_FEATURES.sleepsTabsOverBudget || settings.memorySaver === false || !sys) return null;
+  const after = SLEEP_AFTER_MS[settings.sleepTabsAfter as keyof typeof SLEEP_AFTER_MS];
+  if (after) return { tabs: 0, hiddenMs: sys.memoryPressure !== "normal" ? Math.min(after, HIDDEN_UNDER_PRESSURE_MS) : after };
   const mode = MODES[settings.memorySaverMode] ?? MODES.balanced;
   if (sys.memoryPressure !== "normal") return { tabs: mode.floor, hiddenMs: Math.min(mode.hiddenMs, HIDDEN_UNDER_PRESSURE_MS) };
   return { tabs: Math.max(mode.floor, Math.round((sys.physicalMemory / GIB) * mode.perGib)), hiddenMs: mode.hiddenMs };
@@ -117,6 +120,7 @@ export async function sleepTabsOverBudget(budget: LoadedTabBudget | null, now = 
         noteTabSleptOverBudget(consent);
       } else if (keptBy?.includes(RECENTLY_VISIBLE)) seenAt.set(id, now);
       else {
+        if (keptBy?.length) noteTabKeptOverBudget(keptBy, consent);
         askAgainAt.set(id, now + ASK_AGAIN_MS);
         keptAt.set(id, now);
       }
@@ -148,6 +152,10 @@ export function startLoadedTabBudget(system: () => SystemState | null) {
     every: SWEEP_MS,
     run: () => void sleepTabsOverBudget(budget()),
     needed: () => awakeOf(useBrowser.getState(), webviews.keys()).length > (budget()?.tabs ?? Infinity),
+    watch: (changed) =>
+      useBrowser.subscribe(
+        ({ settings: s }, { settings: p }) => (s.memorySaver !== p.memorySaver || s.memorySaverMode !== p.memorySaverMode || s.sleepTabsAfter !== p.sleepTabsAfter) && changed(),
+      ),
   });
   if (__DEV__) (globalThis as { acLoadedTabBudget?: unknown }).acLoadedTabBudget = { sleepTabsOverBudget, budget, tabsOverBudget };
 }

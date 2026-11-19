@@ -140,6 +140,7 @@ export const SETTING_SPECS = {
   unloadProfilesAfter: oneOf(["never", "5m", "15m", "1h", "2h"], "never"),
   memorySaver: flag(true),
   memorySaverMode: oneOf(["moderate", "balanced", "maximum"], "balanced"),
+  sleepTabsAfter: oneOf(["auto", "15m", "30m", "1h", "2h", "4h"], "auto"),
   loadProfilesWhenOpened: flag(true),
   keepActiveSites: shaped<string[]>([], isStringList, STRING_LIST, SYNCED),
   extensionSidePanelWidth: width(360),

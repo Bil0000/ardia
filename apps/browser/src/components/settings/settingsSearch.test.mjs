@@ -296,6 +296,8 @@ test("a row its pane doesn't draw is left out of search, by the same rule the pa
   assert.ok(unshown({ interfaceStyle: "classic" }, { top: false, glass: true }).has("appearance.glassTint"));
   assert.ok(unshown({ memorySaver: false }, { top: false }).has("advanced.keepActiveSites"));
   assert.ok(!unshown({ memorySaver: true }, { top: false }).has("advanced.keepActiveSites"));
+  assert.ok(unshown({ memorySaver: false }, { top: false }).has("advanced.sleepTabsAfter"));
+  assert.ok(!unshown({ memorySaver: true }, { top: false }).has("advanced.sleepTabsAfter"));
   assert.ok(unshown({ newTabOpens: "commandBar" }, { top: false }).has("tabs.newTabUrl"));
   assert.ok(unshown({ cleanUpInactiveTabsAfterMinutes: 60 }, { top: false }).has("tabs.suggestCleanUp"));
   assert.ok(unshown({ separateDownloadFolders: true }, { top: false }).has("general.downloadsFolder"));

@@ -31,6 +31,14 @@ export const advancedRows = {
           description: "How hard Ardia works to free memory.",
           keywords: ["sleep", "sleeping tabs", "tab sleeping", "discard", "hibernate", "memory", "ram", "inactive tabs", "unload", "suspend", "performance", "moderate", "balanced", "maximum", "memory savings", "profiles", "launch", "extensions", "lazy", "defer", "load profiles when opened", "idle", "inactive", "timeout", "unload inactive profiles"],
         },
+        sleepTabsAfter: {
+          title: "Sleep tabs",
+          explained: true,
+          description: "Tabs you haven't looked at for this long go to sleep and reload when you open them. Automatically sleeps them only when many are open.",
+          keywords: ["sleep", "tab sleeping", "discard", "hibernate", "memory", "ram", "inactive tabs", "unload", "suspend", "idle", "timeout", "after", "minutes", "hours", "free memory", "memory saver"],
+          shown: (s) => s.memorySaver && PLATFORM_FEATURES.sleepsTabsOverBudget,
+          needs: "Turn on Memory Saver to use this",
+        },
         keepActiveSites: {
           title: "Keep these sites awake",
           explained: true,

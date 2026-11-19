@@ -62,6 +62,11 @@ test("a saved Memory Saver mode or site list the engine wouldn't take falls back
   assert.deepEqual(memorySaverRequest({ memorySaver: undefined, memorySaverMode: undefined, keepActiveSites: undefined }), { state: "on", aggressiveness: "balanced", sites: [] });
 });
 
+test("a fixed Sleep tabs time turns Chrome's own Memory Saver timer off, so a tab never sleeps before that time, and kept-active sites still reach Chrome", () => {
+  assert.equal(memorySaverRequest({ memorySaver: true, memorySaverMode: "maximum", sleepTabsAfter: "auto", keepActiveSites: [] }).state, "on");
+  assert.deepEqual(memorySaverRequest({ memorySaver: true, memorySaverMode: "maximum", sleepTabsAfter: "4h", keepActiveSites: ["a.com"] }), { state: "off", aggressiveness: "maximum", sites: ["a.com"] });
+});
+
 test("a kept-active site lowercases only its scheme and host, since Chrome matches the path and query as typed", () => {
   assert.equal(keepActiveSiteOf("  HTTPS://Example.COM/Editor?Doc=AbC "), "https://example.com/Editor?Doc=AbC");
   assert.equal(keepActiveSiteOf("Docs.Google.com/Document/D/XyZ"), "docs.google.com/Document/D/XyZ");
@@ -200,6 +205,23 @@ test("the loaded tab budget grows with the Mac's memory, and shrinks to the mode
   assert.deepEqual(minutes(loadedTabBudget(on("turbo"), sys(8))), { tabs: 10, minutes: 60 }, "an unknown mode is Balanced");
   assert.equal(loadedTabBudget({ memorySaver: false, memorySaverMode: "maximum" }, sys(8)), null, "Memory Saver off keeps every tab loaded");
   assert.equal(loadedTabBudget(on("balanced"), null), null, "nothing sleeps before the Mac's memory is known");
+  const after = (sleepTabsAfter, memorySaver = true) => ({ memorySaver, memorySaverMode: "balanced", sleepTabsAfter });
+  assert.deepEqual(minutes(loadedTabBudget(after("auto"), sys(16))), { tabs: 16, minutes: 60 }, "Automatically keeps the budget");
+  assert.deepEqual(minutes(loadedTabBudget(after("30m"), sys(16))), { tabs: 0, minutes: 30 }, "a chosen time sleeps every tab hidden that long, however few are loaded");
+  assert.deepEqual(minutes(loadedTabBudget(after("4h"), sys(16))), { tabs: 0, minutes: 240 });
+  assert.deepEqual(minutes(loadedTabBudget(after("30m"), sys(16, "warning"))), { tabs: 0, minutes: 10 }, "under pressure the wait is ten minutes at most");
+  assert.deepEqual(minutes(loadedTabBudget(after("2h"), sys(16, "critical"))), { tabs: 0, minutes: 10 });
+  assert.equal(loadedTabBudget(after("30m", false), sys(16)), null, "Memory Saver off keeps every tab loaded whatever the time");
+});
+
+test("with a chosen sleep time, tabs hidden that long sleep oldest first even under the budget; Automatically leaves them", async () => {
+  const { loadedTabBudget, tabsOverBudget } = await import("./loadedTabBudget.ts");
+  const now = Date.now() + 12 * 60 * minute;
+  const { ids, active } = windowOfHiddenTabs(5, now);
+  const sys = { onBattery: false, batteryLevel: null, lowPowerMode: false, memoryPressure: "normal", physicalMemory: 16 * 2 ** 30 };
+  const over = (sleepTabsAfter) => tabsOverBudget(S(), [active, ...ids], loadedTabBudget({ memorySaver: true, memorySaverMode: "balanced", sleepTabsAfter }, sys), now);
+  assert.deepEqual(over("auto"), [], "six loaded tabs are under a 16-tab budget");
+  assert.deepEqual(over("30m"), [ids[4], ids[3], ids[2]], "the tabs hidden 30 minutes or more sleep, oldest first; the shown tab stays");
 });
 
 const minute = 60_000;
@@ -276,6 +298,28 @@ test("Chrome decides each sleep: a tab it keeps, or whose answer doesn't come in
   lifecycle.noteReady(ids[2]);
   lifecycle.noteGone(ids[0]);
   assert.equal(takeTabSleepCounts().tabs_slept_over_budget_reopened, 0);
+  webviews.clear();
+});
+
+test("a tab Chrome keeps is counted by why: notifications, background activity or anything else; one only seen on screen isn't", async (t) => {
+  const { sleepTabsOverBudget } = await import("./loadedTabBudget.ts");
+  const { webviews } = await import("../../platform/webviews.ts");
+  const { takeTabSleepCounts } = await import("../telemetry/tabSleepCounts.ts");
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const now = Date.now() + 60 * 60 * minute;
+  const { ids, active } = windowOfHiddenTabs(4, now);
+  const answers = { [ids[3]]: [13], [ids[2]]: [25, 26], [ids[1]]: [26], [ids[0]]: [7] };
+  webviews.clear();
+  for (const id of [active, ...ids]) webviews.set(id, { sleepIfHidden: async () => answers[id] ?? [] });
+  takeTabSleepCounts();
+  const done = sleepTabsOverBudget({ tabs: 0, hiddenMs: 0 }, now);
+  for (let i = 0; i < 8; i++) await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(await done, []);
+  const counts = takeTabSleepCounts();
+  assert.deepEqual(
+    [counts.tabs_over_budget_kept_notifications, counts.tabs_over_budget_kept_background_activity, counts.tabs_over_budget_kept_other],
+    [1, 1, 1],
+  );
   webviews.clear();
 });
 
