@@ -196,6 +196,8 @@ try {
     assert.equal(await run(`return away();`), false);
     assert.equal(await run(`return at(300, 400).then(() => settle(120)).then(() => at(-30, 400)).then(() => settle(150)).then(() => at(50, 400)).then(() => settle(500)).then(() => { st().toggleSidebar("w1"); return settle(600); }).then(() => { st().toggleSidebar("w1"); return settle(900); }).then(() => at(1, 400)).then(() => settle(500)).then(live);`), true, "after the edge watch stops and starts again, the edge strip still opens it");
     assert.equal(await run(`return away();`), false);
+    assert.equal(await run(`return at(300, 400).then(() => settle(500)).then(() => { st().toggleSidebar("w1"); return settle(600); }).then(() => at(-30, 400)).then(() => settle(300)).then(() => { st().toggleSidebar("w1"); return settle(250); }).then(() => at(50, 400)).then(() => settle(500)).then(live);`), false, "a pointer already past the edge when the watch starts again has made no crossing, so coming back in doesn't peek");
+    assert.equal(await run(`return away();`), false);
     await run(frame(200));
     assert.equal(await run(`return at(300, 400).then(() => at(-250, 400)).then(() => settle(500)).then(live);`), false, "a window away from the screen edge lets the pointer cross");
   });
