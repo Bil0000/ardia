@@ -175,6 +175,7 @@ try {
     assert.equal(out.switched, true);
     assert.deepEqual(out.calls.filter((c) => c === "hide"), [], `no hide: ${out.calls}`);
     assert.equal(out.live, true);
+    await run(`ac.actions.switchProfile("w1", st().profileOrder[0], true); return settle(900).then(() => away());`);
   });
 
   await rep.check("with the window against a screen edge another display shares, the pointer is never held there: it crosses, and coming straight back peeks", async () => {
