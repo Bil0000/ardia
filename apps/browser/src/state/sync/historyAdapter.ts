@@ -123,7 +123,7 @@ export function historyAdapter(profileId: string): Adapter {
         const old = byUrl.get(url);
         if (v) {
           const have = old?.visitTimes ?? [];
-          const fresh = v.vt.filter((t) => t >= since && !have.some((h) => Math.abs(h - t) <= SAME_VISIT_MS));
+          const fresh = [...v.vt].sort((a, z) => a - z).slice(-MAX_VISIT_TIMES).filter((t) => t >= since && !have.some((h) => Math.abs(h - t) <= SAME_VISIT_MS));
           if (fresh.length) add.push({ url, title: v.t, visitTimes: fresh });
           const times = [...have, ...fresh].sort((a, z) => a - z).slice(-MAX_VISIT_TIMES);
           if (!times.length) continue;

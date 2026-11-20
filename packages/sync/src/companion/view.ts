@@ -1,9 +1,11 @@
 import { visible } from "../scope.ts";
 import type { ScopeState } from "../scopeState.ts";
 import { fromLegacy } from "./legacy.ts";
-import { folderChildren, lastVisitOf, type BookmarkValue, type DeviceTabs, type DeviceValue, type HistoryValue } from "./adapters.ts";
+import { folderChildren } from "../folders.ts";
+import { lastVisitOf, type BookmarkValue, type DeviceTabs, type DeviceValue, type HistoryValue } from "./adapters.ts";
 
 export const MAX_HISTORY_ITEMS = 2_000;
+const MAX_BOOKMARK_DEPTH = 100;
 
 type Kind = "mac" | "phone";
 type ProfileRecord = { n?: unknown; c?: unknown; i?: unknown; d?: unknown; th?: unknown };
@@ -258,14 +260,14 @@ export function bookmarkTree(scope: ScopeState | undefined): ViewBookmark[] {
   const values = new Map<string, BookmarkValue>();
   for (const [k, v] of visible(scope, "bm:")) {
     const b = v as BookmarkValue;
-    if (b && typeof b === "object" && (b.k === "u" || b.k === "f")) values.set(k.slice(3), fromLegacy(b));
+    if (k !== "bm:bar" && k !== "bm:other" && b && typeof b === "object" && (b.k === "u" || b.k === "f")) values.set(k.slice(3), fromLegacy(b));
   }
   const parentOf = new Map<string, string>();
   for (const [key, v] of values) {
     const p = typeof v.p === "string" ? v.p : "other";
     parentOf.set(key, p === "bar" || p === "other" ? p : values.get(p)?.k === "f" ? p : "other");
   }
-  const children = folderChildren(parentOf, [...values.keys()].sort());
+  const children = folderChildren(parentOf, [...values.keys()].sort(), "other");
   const sorted = (parent: string) =>
     (children.get(parent) ?? []).map((key) => ({ key, pos: str(values.get(key)!.pos) })).sort(byPosThenKey).map((x) => x.key);
   const node = (key: string, root: "bar" | "other" | null): ViewBookmark => {
@@ -281,14 +283,14 @@ export function bookmarkTree(scope: ScopeState | undefined): ViewBookmark[] {
     };
   };
   const tree = [...sorted("bar").map((k) => node(k, "bar")), ...sorted("other").map((k) => node(k, "other"))];
-  const folders = [...tree];
+  const folders = tree.map((folder) => ({ folder, depth: 1 }));
   while (folders.length) {
-    const folder = folders.pop()!;
-    if (!folder.children) continue;
+    const { folder, depth } = folders.pop()!;
+    if (!folder.children || depth >= MAX_BOOKMARK_DEPTH) continue;
     for (const k of sorted(folder.key)) {
       const child = node(k, null);
       folder.children.push(child);
-      folders.push(child);
+      folders.push({ folder: child, depth: depth + 1 });
     }
   }
   return tree;

@@ -2264,6 +2264,9 @@ test("a 20,000-deep bookmark folder chain is read for sync in the same order as 
   assert.equal(values.get(keys[0]).t, "First", "the bar is read before Other Bookmarks");
   assert.deepEqual(keys.slice(1, 4).map((k) => values.get(k).t), ["D0", "D1", "D2"], "each folder is read before the next one below it");
   assert.equal(values.get(keys.at(-1)).u, "https://deep.example/");
+  const applied = adapters.bookmarksAdapter("default").apply(values, new Set(values.keys()), () => undefined, { known: () => true, now: Date.now(), horizon: 0, joined: true });
+  assert.notEqual(applied, false);
+  assert.equal(Object.values(S().bookmarks.nodes).filter((n) => n.kind === "folder" && n.title.startsWith("D")).length, depth, "the same chain is applied back over itself");
 });
 
 test("a pinned group chain 4,000 deep from a damaged or foreign file is applied without overflowing", () => {

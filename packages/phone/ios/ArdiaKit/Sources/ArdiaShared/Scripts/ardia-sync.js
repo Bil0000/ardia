@@ -1347,7 +1347,6 @@ __define("packages/sync/src/companion/adapters.ts", function (exports, __require
   __export(exports, "isWebUrl", () => isWebUrl);
   __export(exports, "historyExpired", () => historyExpired);
   __export(exports, "lastVisitOf", () => lastVisitOf);
-  __export(exports, "folderChildren", () => folderChildren);
   __export(exports, "dayOf", () => dayOf);
   __export(exports, "deviceAdapter", () => deviceAdapter);
   __export(exports, "deviceTabsAdapter", () => deviceTabsAdapter);
@@ -1387,33 +1386,6 @@ const historyExpired = (key        , value         , now        ) =>
 
 const lastVisitOf = (v                                 ) => (v && Array.isArray(v.vt) ? v.vt.reduce((m, t) => Math.max(m, t), 0) : 0);
 
-function folderChildren(parentOf                     , keys          )                        {
-  const rooted = new Set        ();
-  for (const key of keys) {
-    const path = [key];
-    const seen = new Set([key]);
-    let looped = false;
-    for (let at = parentOf.get(key) ; parentOf.has(at) && !rooted.has(at); at = parentOf.get(at) ) {
-      if (seen.has(at)) {
-        parentOf.set(key, "other");
-        looped = true;
-        break;
-      }
-      seen.add(at);
-      path.push(at);
-    }
-    if (looped) rooted.add(key);
-    else for (const at of path) rooted.add(at);
-  }
-  const children = new Map                  ();
-  for (const key of parentOf.keys()) {
-    const list = children.get(parentOf.get(key) );
-    if (list) list.push(key);
-    else children.set(parentOf.get(key) , [key]);
-  }
-  return children;
-}
-
 const dayOf = (at        ) => new Date(at).toISOString().slice(0, 10).replaceAll("-", "");
 
 function deviceAdapter(device        , name        , retiring         , ghosts           = [])          {
@@ -1449,6 +1421,7 @@ function deviceTabsAdapter(device        , name        , tabs                   
   };
 }
 
+const newestTimes = (vt         )           => (Array.isArray(vt) ? vt.filter((t) => Number.isFinite(t)).sort((a, z) => a - z).slice(-MAX_VISIT_TIMES) : []);
 const near = (times          , t        ) => times.some((k) => Math.abs(k - t) <= SAME_VISIT_MS);
 
 function unionTimes(a          , b          )           {
@@ -1508,7 +1481,7 @@ function historyAdapter(ctx                )          {
           values.set(key, { t: entry.title, n: local.length, vt: local }                       );
           continue;
         }
-        const knownTimes = Array.isArray(known.vt) ? known.vt.filter((t) => Number.isFinite(t)) : [];
+        const knownTimes = newestTimes(known.vt);
         const oldestKept = knownTimes.length >= MAX_VISIT_TIMES ? knownTimes.reduce((m, t) => Math.min(m, t), Infinity) : -Infinity;
         const missing = local.filter((t) => t >= oldestKept && !near(knownTimes, t));
         if (!missing.length) continue;
@@ -1528,7 +1501,7 @@ function historyAdapter(ctx                )          {
         const value = visible.get(key)                            ;
         if (value) {
           const mine = ctx.visited[url];
-          const times = Array.isArray(value.vt) ? value.vt : [];
+          const times = newestTimes(value.vt);
           const oldestKept = times.length >= MAX_VISIT_TIMES ? times.reduce((m, t) => Math.min(m, t), Infinity) : -Infinity;
           if (mine !== undefined && mine >= oldestKept && mine > (ctx.floors[url] ?? -Infinity) && !near(times, mine)) ctx.due(url);
           continue;
@@ -1703,9 +1676,11 @@ __define("packages/sync/src/companion/view.ts", function (exports, __require) {
 const { visible } = __require("packages/sync/src/scope.ts");
                                                    
 const { fromLegacy } = __require("packages/sync/src/companion/legacy.ts");
-const { folderChildren, lastVisitOf } = __require("packages/sync/src/companion/adapters.ts");
+const { folderChildren } = __require("packages/sync/src/folders.ts");
+const { lastVisitOf } = __require("packages/sync/src/companion/adapters.ts");
 
 const MAX_HISTORY_ITEMS = 2_000;
+const MAX_BOOKMARK_DEPTH = 100;
 
                             
                                                                                           
@@ -1960,14 +1935,14 @@ function bookmarkTree(scope                        )                 {
   const values = new Map                       ();
   for (const [k, v] of visible(scope, "bm:")) {
     const b = v                 ;
-    if (b && typeof b === "object" && (b.k === "u" || b.k === "f")) values.set(k.slice(3), fromLegacy(b));
+    if (k !== "bm:bar" && k !== "bm:other" && b && typeof b === "object" && (b.k === "u" || b.k === "f")) values.set(k.slice(3), fromLegacy(b));
   }
   const parentOf = new Map                ();
   for (const [key, v] of values) {
     const p = typeof v.p === "string" ? v.p : "other";
     parentOf.set(key, p === "bar" || p === "other" ? p : values.get(p)?.k === "f" ? p : "other");
   }
-  const children = folderChildren(parentOf, [...values.keys()].sort());
+  const children = folderChildren(parentOf, [...values.keys()].sort(), "other");
   const sorted = (parent        ) =>
     (children.get(parent) ?? []).map((key) => ({ key, pos: str(values.get(key) .pos) })).sort(byPosThenKey).map((x) => x.key);
   const node = (key        , root                        )               => {
@@ -1983,14 +1958,14 @@ function bookmarkTree(scope                        )                 {
     };
   };
   const tree = [...sorted("bar").map((k) => node(k, "bar")), ...sorted("other").map((k) => node(k, "other"))];
-  const folders = [...tree];
+  const folders = tree.map((folder) => ({ folder, depth: 1 }));
   while (folders.length) {
-    const folder = folders.pop() ;
-    if (!folder.children) continue;
+    const { folder, depth } = folders.pop() ;
+    if (!folder.children || depth >= MAX_BOOKMARK_DEPTH) continue;
     for (const k of sorted(folder.key)) {
       const child = node(k, null);
       folder.children.push(child);
-      folders.push(child);
+      folders.push({ folder: child, depth: depth + 1 });
     }
   }
   return tree;
@@ -2097,6 +2072,36 @@ function buildView(scopes                            , me        )       {
   const placed = (p             ) => rank.get(p.syncId) ?? rank.size;
   profileList.sort((a, z) => placed(a) - placed(z) || Number(z.isDefault) - Number(a.isDefault) || a.name.localeCompare(z.name) || (a.syncId < z.syncId ? -1 : 1));
   return { devices: deviceList, profiles: profileList, search: searchOf(app), look: lookOf(app) };
+}
+
+});
+__define("packages/sync/src/folders.ts", function (exports, __require) {
+  __export(exports, "folderChildren", () => folderChildren);
+function folderChildren(parentOf                     , keys          , fallback        )                        {
+  const rooted = new Set        ();
+  for (const key of keys) {
+    const path = [key];
+    const seen = new Set([key]);
+    let looped = false;
+    for (let at = parentOf.get(key) ; parentOf.has(at) && !rooted.has(at); at = parentOf.get(at) ) {
+      if (seen.has(at)) {
+        parentOf.set(key, fallback);
+        looped = true;
+        break;
+      }
+      seen.add(at);
+      path.push(at);
+    }
+    if (looped) rooted.add(key);
+    else for (const at of path) rooted.add(at);
+  }
+  const children = new Map                  ();
+  for (const key of parentOf.keys()) {
+    const list = children.get(parentOf.get(key) );
+    if (list) list.push(key);
+    else children.set(parentOf.get(key) , [key]);
+  }
+  return children;
 }
 
 });
