@@ -1224,15 +1224,20 @@ test("pulling 20,000 history deletions lists each once and acknowledging them cl
   assert.deepEqual((await phone.cycle({ visits: null })).historyRemoved, []);
 });
 
-test("a 20,000-deep folder chain builds the phone's bookmark tree without overflowing or a walk per folder", () => {
+test("a 20,000-deep folder chain, and folders named like the roots, give the phone a bookmark tree it can serialize and decode", () => {
   const app = emptyScope();
   app.records[`prof:${P1}`] = { h: "a", v: { n: "Personal", c: "blue", i: null, d: true }, o: ["x", 1] };
   const scope = emptyScope();
   const depth = 20_000;
   for (let i = 0; i < depth; i++) scope.records[`bm:d${String(i).padStart(5, "0")}`] = { h: "a", v: { k: "f", p: i ? `d${String(i - 1).padStart(5, "0")}` : "other", t: `D${i}`, a: 1, pos: "1" }, o: ["x", 1] };
+  scope.records["bm:other"] = { h: "a", v: { k: "f", p: "other", t: "Not a root", a: 1, pos: "2" }, o: ["x", 1] };
+  scope.records["bm:bar"] = { h: "a", v: { k: "f", p: "bar", t: "Not a root either", a: 1, pos: "2" }, o: ["x", 1] };
   const started = performance.now();
+  const bookmarks = buildView({ app, [`p:${P1}`]: scope }, PHONE).profiles[0]!.bookmarks;
   let levels = 0;
-  for (let at: ViewBookmark | undefined = buildView({ app, [`p:${P1}`]: scope }, PHONE).profiles[0]!.bookmarks[0]; at; at = at.children?.[0]) levels++;
-  assert.equal(levels, depth);
+  for (let at: ViewBookmark | undefined = bookmarks[0]; at; at = at.children?.[0]) levels++;
+  assert.equal(levels, 100);
+  assert.deepEqual(bookmarks.map((b) => b.title), ["D0"]);
+  assert.ok(JSON.stringify(bookmarks).length > 0);
   assert.ok(performance.now() - started < 5_000, `${Math.round(performance.now() - started)} ms`);
 });

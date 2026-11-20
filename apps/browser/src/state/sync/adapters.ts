@@ -1,6 +1,6 @@
 import { deletePassword } from "../../platform/passwords";
 import { orWarn } from "../../lib/fallback";
-import { assignPositions, SyncNative, type Adapter, type SealedLogin } from "../../platform/sync";
+import { assignPositions, folderChildren, SyncNative, type Adapter, type SealedLogin } from "../../platform/sync";
 import { bookmarkRoots, bookmarkUuidFor, ensureRoots, isBookmarkUuid } from "../bookmarks/bookmarks";
 import { useBrowser } from "../browser/store";
 import { engineProfile } from "../browser/model";
@@ -132,22 +132,8 @@ export function bookmarksAdapter(profileId: string): Adapter {
         const parent = root ? null : bookmarkUuidFor(v.p);
         parentOf.set(id, root ?? (parent && values.get(parent)?.k === "f" ? parent : roots.other));
       }
-      for (const id of [...values.keys()].sort()) {
-        const seen = new Set<string>([id]);
-        for (let at = parentOf.get(id)!; parentOf.has(at); at = parentOf.get(at)!) {
-          if (seen.has(at)) {
-            parentOf.set(id, roots.other);
-            break;
-          }
-          seen.add(at);
-        }
-      }
-      const children = new Map<string, string[]>([[roots.bar, []], [roots.other, []]]);
-      for (const id of values.keys()) {
-        const siblings = children.get(parentOf.get(id)!);
-        if (siblings) siblings.push(id);
-        else children.set(parentOf.get(id)!, [id]);
-      }
+      const children = folderChildren(parentOf, [...values.keys()].sort(), roots.other);
+      for (const root of [roots.bar, roots.other]) if (!children.has(root)) children.set(root, []);
       const byPosition = (a: string, z: string) => {
         const pa = values.get(a)!.pos;
         const pz = values.get(z)!.pos;
@@ -156,13 +142,13 @@ export function bookmarksAdapter(profileId: string): Adapter {
         return pa < pz ? -1 : pa > pz ? 1 : ka < kz ? -1 : 1;
       };
       const nodes: Record<string, BookmarkNode> = { ...b.nodes };
-      const drop = (id: string) => {
+      const dropping = [roots.bar, roots.other];
+      while (dropping.length) {
+        const id = dropping.pop()!;
         const node = nodes[id];
-        if (node?.kind === "folder") node.children.forEach(drop);
+        if (node?.kind === "folder") for (const child of node.children) dropping.push(child);
         if (id !== roots.bar && id !== roots.other) delete nodes[id];
-      };
-      drop(roots.bar);
-      drop(roots.other);
+      }
       for (const [id, v] of values) {
         const old = b.nodes[id];
         const key = keys.get(id)!;

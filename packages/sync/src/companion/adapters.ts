@@ -31,33 +31,6 @@ export const historyExpired = (key: string, value: unknown, now: number) =>
 
 export const lastVisitOf = (v: HistoryValue | null | undefined) => (v && Array.isArray(v.vt) ? v.vt.reduce((m, t) => Math.max(m, t), 0) : 0);
 
-export function folderChildren(parentOf: Map<string, string>, keys: string[]): Map<string, string[]> {
-  const rooted = new Set<string>();
-  for (const key of keys) {
-    const path = [key];
-    const seen = new Set([key]);
-    let looped = false;
-    for (let at = parentOf.get(key)!; parentOf.has(at) && !rooted.has(at); at = parentOf.get(at)!) {
-      if (seen.has(at)) {
-        parentOf.set(key, "other");
-        looped = true;
-        break;
-      }
-      seen.add(at);
-      path.push(at);
-    }
-    if (looped) rooted.add(key);
-    else for (const at of path) rooted.add(at);
-  }
-  const children = new Map<string, string[]>();
-  for (const key of parentOf.keys()) {
-    const list = children.get(parentOf.get(key)!);
-    if (list) list.push(key);
-    else children.set(parentOf.get(key)!, [key]);
-  }
-  return children;
-}
-
 export const dayOf = (at: number) => new Date(at).toISOString().slice(0, 10).replaceAll("-", "");
 
 export function deviceAdapter(device: string, name: string, retiring: boolean, ghosts: string[] = []): Adapter {
@@ -93,6 +66,7 @@ export function deviceTabsAdapter(device: string, name: string, tabs: LocalTab[]
   };
 }
 
+const newestTimes = (vt: unknown): number[] => (Array.isArray(vt) ? vt.filter((t) => Number.isFinite(t)).sort((a, z) => a - z).slice(-MAX_VISIT_TIMES) : []);
 const near = (times: number[], t: number) => times.some((k) => Math.abs(k - t) <= SAME_VISIT_MS);
 
 function unionTimes(a: number[], b: number[]): number[] {
@@ -152,7 +126,7 @@ export function historyAdapter(ctx: HistoryContext): Adapter {
           values.set(key, { t: entry.title, n: local.length, vt: local } satisfies HistoryValue);
           continue;
         }
-        const knownTimes = Array.isArray(known.vt) ? known.vt.filter((t) => Number.isFinite(t)) : [];
+        const knownTimes = newestTimes(known.vt);
         const oldestKept = knownTimes.length >= MAX_VISIT_TIMES ? knownTimes.reduce((m, t) => Math.min(m, t), Infinity) : -Infinity;
         const missing = local.filter((t) => t >= oldestKept && !near(knownTimes, t));
         if (!missing.length) continue;
@@ -172,7 +146,7 @@ export function historyAdapter(ctx: HistoryContext): Adapter {
         const value = visible.get(key) as HistoryValue | undefined;
         if (value) {
           const mine = ctx.visited[url];
-          const times = Array.isArray(value.vt) ? value.vt : [];
+          const times = newestTimes(value.vt);
           const oldestKept = times.length >= MAX_VISIT_TIMES ? times.reduce((m, t) => Math.min(m, t), Infinity) : -Infinity;
           if (mine !== undefined && mine >= oldestKept && mine > (ctx.floors[url] ?? -Infinity) && !near(times, mine)) ctx.due(url);
           continue;
