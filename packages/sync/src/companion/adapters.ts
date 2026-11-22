@@ -66,7 +66,6 @@ export function deviceTabsAdapter(device: string, name: string, tabs: LocalTab[]
   };
 }
 
-const newestTimes = (vt: unknown): number[] => (Array.isArray(vt) ? vt.filter((t) => Number.isFinite(t)).sort((a, z) => a - z).slice(-MAX_VISIT_TIMES) : []);
 const near = (times: number[], t: number) => times.some((k) => Math.abs(k - t) <= SAME_VISIT_MS);
 
 function unionTimes(a: number[], b: number[]): number[] {
@@ -74,6 +73,8 @@ function unionTimes(a: number[], b: number[]): number[] {
   for (const t of [...a, ...b].sort((x, y) => x - y)) if (!out.length || t - out[out.length - 1]! > SAME_VISIT_MS) out.push(t);
   return out.slice(-MAX_VISIT_TIMES);
 }
+
+const newestTimes = (vt: unknown): number[] => (Array.isArray(vt) ? unionTimes(vt.filter((t) => Number.isFinite(t)), []) : []);
 
 export type HistoryContext = {
   visits: (LocalVisit & { p: string })[];

@@ -91,7 +91,7 @@ test("an old local row is ignored before its synced JSON is read: a malformed on
 
 test("a synced history record with 200,000 visit times, from a damaged or foreign file, is read as expired or kept without overflowing, and applied as its newest 50", async () => {
   const now = Date.now();
-  const recent = Array.from({ length: 200_000 }, (_, i) => now - DAY + i);
+  const recent = Array.from({ length: 200_000 }, (_, i) => now - DAY + 2 * i);
   const old = recent.map((t) => t - 120 * DAY);
   assert.equal(adapters.historyExpired("h:https://long.example/", { t: "Long", n: recent.length, vt: recent }, now), false);
   assert.equal(adapters.historyExpired("h:https://long.example/", { t: "Long", n: old.length, vt: old }, now), true);
@@ -100,4 +100,18 @@ test("a synced history record with 200,000 visit times, from a damaged or foreig
   const view = new Map([["h:https://long.example/", { t: "Long", n: many.length, vt: many }]]);
   await adapters.historyAdapter("default").apply(view, new Set(view.keys()), () => undefined, { known: () => true, now, horizon: 0, joined: true });
   assert.deepEqual(stub.chromeHistory("").get("https://long.example/").visits, recent.slice(-50), "only the newest 50 times reach the engine");
+});
+
+test("a synced record holding one time many times over still lands its other times", async () => {
+  const now = Date.now();
+  const url = "https://repeat.example/";
+  const older = Array.from({ length: 49 }, (_, i) => now - 3 * DAY + i * 60_000);
+  const repeated = now - 2 * DAY;
+  const vt = [...older, ...Array.from({ length: 50 }, () => repeated)];
+  stub.historyDbs.clear();
+  useBrowser.setState({ history: { "": { list: [], floor: -Infinity, ready: true } } });
+  const view = new Map([[`h:${url}`, { t: "Repeat", n: vt.length, vt }]]);
+  await adapters.historyAdapter("default").apply(view, new Set(view.keys()), () => undefined, { known: () => true, now, horizon: 0, joined: true });
+  assert.deepEqual([...new Set(stub.chromeHistory("").get(url).visits)], [...older, repeated], "Chrome gets every distinct time");
+  assert.deepEqual(useBrowser.getState().history[""].list.find((h) => h.url === url).visitTimes, [...older, repeated], "and so does the history list");
 });

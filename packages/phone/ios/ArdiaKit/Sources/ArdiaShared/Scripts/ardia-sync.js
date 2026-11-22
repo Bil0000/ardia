@@ -1421,7 +1421,6 @@ function deviceTabsAdapter(device        , name        , tabs                   
   };
 }
 
-const newestTimes = (vt         )           => (Array.isArray(vt) ? vt.filter((t) => Number.isFinite(t)).sort((a, z) => a - z).slice(-MAX_VISIT_TIMES) : []);
 const near = (times          , t        ) => times.some((k) => Math.abs(k - t) <= SAME_VISIT_MS);
 
 function unionTimes(a          , b          )           {
@@ -1429,6 +1428,8 @@ function unionTimes(a          , b          )           {
   for (const t of [...a, ...b].sort((x, y) => x - y)) if (!out.length || t - out[out.length - 1]  > SAME_VISIT_MS) out.push(t);
   return out.slice(-MAX_VISIT_TIMES);
 }
+
+const newestTimes = (vt         )           => (Array.isArray(vt) ? unionTimes(vt.filter((t) => Number.isFinite(t)), []) : []);
 
                               
                                          

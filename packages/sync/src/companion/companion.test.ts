@@ -1241,3 +1241,20 @@ test("a 20,000-deep folder chain, and folders named like the roots, give the pho
   assert.ok(JSON.stringify(bookmarks).length > 0);
   assert.ok(performance.now() - started < 5_000, `${Math.round(performance.now() - started)} ms`);
 });
+
+test("a record holding one time many times over keeps its other times when the phone adds a visit", async () => {
+  const { folder, mac, phone } = await joined();
+  const url = "https://repeat.example/";
+  const older = Array.from({ length: 49 }, (_, i) => START - 3 * DAY + i * 60_000);
+  const repeated = START - 2 * DAY;
+  const writer = new Clock("foreign0000000000000000000", null, () => folder.now);
+  const vt = [...older, ...Array.from({ length: 50 }, () => repeated)];
+  const ops = [{ k: `h:${url}`, h: writer.tick(), v: { t: "Repeat", n: vt.length, vt } }];
+  folder.add(s1, JSON.stringify({ v: 1, kind: "log", device: "foreign0000000000000000000", seq: 1, at: folder.now, ops } satisfies LogFile));
+  folder.now += 15_000;
+  const visit = START - DAY;
+  await phone.cycle({ visits: [{ u: url, t: "Repeat", vt: [visit], p: P1 }] });
+  await mac.sync([s1]);
+  const kept = (mac.scopes[s1]!.records[`h:${url}`]!.v as { vt: number[] }).vt;
+  assert.deepEqual(kept, [...older.slice(1), repeated, visit]);
+});
