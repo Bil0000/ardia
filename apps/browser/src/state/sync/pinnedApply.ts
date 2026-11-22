@@ -1,6 +1,6 @@
 import type { ApplyRecords } from "../../platform/sync";
 import { useBrowser } from "../browser/store";
-import { depthOf, leaveGroups, orderSections, syncGroupOrder, withParent } from "../groups/groups";
+import { depthsIn, leaveGroups, orderSections, syncGroupOrder, withParent } from "../groups/groups";
 import { makeTab, newId, pinKeyOf, ROW_PIN } from "../browser/model";
 import { noteRemotePinDeletion } from "../pins/tabCleanup";
 import { type PinSyncEntry } from "../pins/pinChoices";
@@ -166,21 +166,30 @@ export function applyPinned(profileId: string, visible: Map<string, unknown>, ch
     });
     addKid(m.chain.at(-1)!, m);
   }
-  const walk = (id: string): Slot[] => {
-    const out: Slot[] = [];
-    const stack = [...(kids.get(id) ?? [])].reverse();
-    while (stack.length) {
-      const x = stack.pop()!;
-      out.push(x);
-      const inner = x.group ? (kids.get(x.id) ?? []) : [];
-      for (let i = inner.length - 1; i >= 0; i--) stack.push(inner[i]!);
+  const tree: Slot[] = [];
+  const memberIds: string[] = [];
+  const memberRange = new Map<string, [number, number]>();
+  const visiting: { slot: Slot; closing: boolean }[] = [];
+  for (let i = areaSlots.length - 1; i >= 0; i--) visiting.push({ slot: areaSlots[i]!, closing: false });
+  while (visiting.length) {
+    const { slot, closing } = visiting.pop()!;
+    if (closing) {
+      memberRange.get(slot.id)![1] = memberIds.length;
+      continue;
     }
-    return out;
-  };
-  const tree = areaSlots.flatMap((x) => (x.group ? [x, ...walk(x.id)] : [x]));
+    tree.push(slot);
+    if (!slot.group) {
+      memberIds.push(slot.id);
+      continue;
+    }
+    memberRange.set(slot.id, [memberIds.length, memberIds.length]);
+    visiting.push({ slot, closing: true });
+    const inner = kids.get(slot.id) ?? [];
+    for (let i = inner.length - 1; i >= 0; i--) visiting.push({ slot: inner[i]!, closing: false });
+  }
   const groupOrder = tree.filter((x) => x.group).map((x) => x.id);
   const tileOrder = areaSlots.filter((x) => !x.group).map((x) => x.id);
-  const memberOrder = new Map([...all].map((g) => [g, walk(g).filter((x) => !x.group).map((x) => x.id)]));
+  const memberOrder = new Map([...all].map((g) => [g, memberRange.has(g) ? memberIds.slice(...memberRange.get(g)!) : []]));
 
   const goneTabs = [...changed].filter((k) => k.startsWith(PIN_TAB) && !visible.has(k)).map((k) => tid(k.slice(PIN_TAB.length))).filter((id) => contained(id) && scope.has(s.tabs[id]!.windowId));
   const removable = goneTabs.filter((id) => {
@@ -259,7 +268,8 @@ export function applyPinned(profileId: string, visible: Map<string, unknown>, ch
   for (const g of Object.values(groups)) if (g.profileId === profileId && !g.tabIds.length) delete groups[g.id];
   const copied = new Map<string, string>();
   const pinnedHere = Object.values(groups).filter((g) => g.profileId === profileId && g.pinned);
-  for (const { id: groupId } of pinnedHere.map((g) => [g, depthOf(groups, g.id)] as const).sort((a, z) => a[1] - z[1]).map(([g]) => g)) {
+  const depth = depthsIn(groups);
+  for (const { id: groupId } of pinnedHere.map((g) => [g, depth(g.id)] as const).sort((a, z) => a[1] - z[1]).map(([g]) => g)) {
     const g = groups[groupId]!;
     const parent = g.parentId ? groups[g.parentId] : undefined;
     const real = (w: string) => w !== PARK && !!windows[w];

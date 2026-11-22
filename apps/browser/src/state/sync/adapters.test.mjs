@@ -2338,3 +2338,35 @@ test("a pinned group chain 4,000 deep from a damaged or foreign file is applied 
   assert.ok(leaf, "the leaf pin landed");
   assert.equal(Object.values(S().groups).filter((x) => x.pinned && x.name.startsWith("G")).length, depth);
 });
+
+test("an 8,000-deep pinned group chain is applied with work in line with its depth, not its square", () => {
+  S().hydrate({});
+  S().createWindow({ url: "https://home.example/" });
+  const depth = 8_000;
+  const g = (i) => `deep${String(i).padStart(5, "0")}`;
+  const visible = new Map([[`pin:g:${g(0)}`, { n: "G0", i: null, c: "blue", pos: "1" }]]);
+  for (let i = 1; i < depth; i++) visible.set(`pinn:g:${g(i)}`, { n: `G${i}`, i: null, c: "blue", p: g(i - 1) });
+  visible.set("pin:t:leaf", { g: g(depth - 1), u: "https://leaf.example/", t: null, i: null, ti: "Leaf", pos: "1" });
+  const records = { known: () => true, now: Date.now(), horizon: 0, joined: true, held: () => false, landed: () => {} };
+  const { add } = Set.prototype;
+  const { push } = Array.prototype;
+  let steps = 0;
+  Set.prototype.add = function (value) {
+    steps++;
+    return add.call(this, value);
+  };
+  Array.prototype.push = function (...items) {
+    steps++;
+    return push.apply(this, items);
+  };
+  try {
+    pinnedArea.pinnedAdapter("default").apply(visible, new Set(visible.keys()), () => undefined, records);
+  } finally {
+    Set.prototype.add = add;
+    Array.prototype.push = push;
+  }
+  const chain = Object.values(S().groups).filter((x) => x.pinned && x.name.startsWith("G"));
+  assert.equal(chain.length, depth);
+  assert.ok(chain.every((x) => x.tabIds.length === 1), "every group in the chain holds the leaf");
+  assert.ok(steps < 100 * depth, `${steps} set and list insertions`);
+});
