@@ -2283,14 +2283,21 @@ test("history: a title Chrome reports while synced visits are being written stay
   assert.equal(historyOf(S(), "default").find((h) => h.url === url).title, "Journal: Tuesday");
 });
 
-test("a 20,000-deep bookmark folder chain is read for sync in the same order as before, without overflowing", () => {
+test("a 20,000-deep bookmark folder chain is read for sync in the same order as before, and applied and written to Chrome without overflowing", async () => {
+  const { reloadBookmarks, startBookmarks } = await import("../bookmarks/engineSync.ts");
+  const settle = () => new Promise((r) => setTimeout(r, 0));
   useBrowser.setState({ bookmarks: { nodes: {} } });
   S().hydrate({});
-  useBrowser.setState((s) => ({ bookmarksReady: { ...s.bookmarksReady, [model.engineProfile(s, "default")]: true } }));
+  stub.docs.clear();
+  stub.bookmarkDbs.clear();
+  const stop = startBookmarks();
+  await settle();
+  await reloadBookmarks();
   S().addBookmark({ profileId: "default", url: "https://first.example/", title: "First" });
   const roots = bookmarkRoots(S(), "default");
   const nodes = { ...S().bookmarks.nodes };
   const depth = 20_000;
+  const deepUrl = "00000000-0000-4000-9000-000000000001";
   let parent = roots.other;
   for (let i = 0; i < depth; i++) {
     const id = `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`;
@@ -2298,8 +2305,8 @@ test("a 20,000-deep bookmark folder chain is read for sync in the same order as 
     nodes[parent] = { ...nodes[parent], children: [...nodes[parent].children, id] };
     parent = id;
   }
-  nodes[parent] = { ...nodes[parent], children: [...nodes[parent].children, "deep-url"] };
-  nodes["deep-url"] = { kind: "url", id: "deep-url", parentId: parent, title: "Deep", url: "https://deep.example/", addedAt: 2 };
+  nodes[parent] = { ...nodes[parent], children: [...nodes[parent].children, deepUrl] };
+  nodes[deepUrl] = { kind: "url", id: deepUrl, parentId: parent, title: "Deep", url: "https://deep.example/", addedAt: 2 };
   useBrowser.setState({ bookmarks: { ...S().bookmarks, nodes } });
   const { values } = adapters.bookmarksAdapter("default").extract(() => undefined, [], Date.now(), () => false);
   const keys = [...values.keys()];
@@ -2310,6 +2317,11 @@ test("a 20,000-deep bookmark folder chain is read for sync in the same order as 
   const applied = adapters.bookmarksAdapter("default").apply(values, new Set(values.keys()), () => undefined, { known: () => true, now: Date.now(), horizon: 0, joined: true });
   assert.notEqual(applied, false);
   assert.equal(Object.values(S().bookmarks.nodes).filter((n) => n.kind === "folder" && n.title.startsWith("D")).length, depth, "the same chain is applied back over itself");
+  for (let i = 0; i < 20 && !stub.chromeBookmarks("").has(deepUrl); i++) await settle();
+  stop();
+  const db = stub.chromeBookmarks("");
+  assert.equal(db.get(deepUrl)?.u, "https://deep.example/", "the deepest bookmark reaches Chrome");
+  assert.equal([...db.values()].filter((n) => n.k === "f" && n.t.startsWith("D")).length, depth, "with every folder above it");
 });
 
 test("a pinned group chain 4,000 deep from a damaged or foreign file is applied without overflowing", () => {
