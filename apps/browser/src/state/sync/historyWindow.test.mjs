@@ -115,3 +115,15 @@ test("a synced record holding one time many times over still lands its other tim
   assert.deepEqual([...new Set(stub.chromeHistory("").get(url).visits)], [...older, repeated], "Chrome gets every distinct time");
   assert.deepEqual(useBrowser.getState().history[""].list.find((h) => h.url === url).visitTimes, [...older, repeated], "and so does the history list");
 });
+
+test("a synced record's visits a millisecond apart both reach Chrome and the history list", async () => {
+  const now = Date.now();
+  const url = "https://close.example/";
+  const at = now - DAY;
+  stub.historyDbs.clear();
+  useBrowser.setState({ history: { "": { list: [], floor: -Infinity, ready: true } } });
+  const view = new Map([[`h:${url}`, { t: "Close", n: 2, vt: [at, at + 1] }]]);
+  await adapters.historyAdapter("default").apply(view, new Set(view.keys()), () => undefined, { known: () => true, now, horizon: 0, joined: true });
+  assert.deepEqual(stub.chromeHistory("").get(url).visits, [at, at + 1]);
+  assert.deepEqual(useBrowser.getState().history[""].list.find((h) => h.url === url).visitTimes, [at, at + 1]);
+});

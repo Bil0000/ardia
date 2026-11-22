@@ -74,7 +74,7 @@ function unionTimes(a: number[], b: number[]): number[] {
   return out.slice(-MAX_VISIT_TIMES);
 }
 
-const newestTimes = (vt: unknown): number[] => (Array.isArray(vt) ? unionTimes(vt.filter((t) => Number.isFinite(t)), []) : []);
+const keptTimes = (times: number[]): number[] => (times.length > MAX_VISIT_TIMES ? unionTimes(times.filter((t) => Number.isFinite(t)), []) : times);
 
 export type HistoryContext = {
   visits: (LocalVisit & { p: string })[];
@@ -127,7 +127,7 @@ export function historyAdapter(ctx: HistoryContext): Adapter {
           values.set(key, { t: entry.title, n: local.length, vt: local } satisfies HistoryValue);
           continue;
         }
-        const knownTimes = newestTimes(known.vt);
+        const knownTimes = keptTimes(Array.isArray(known.vt) ? known.vt.filter((t) => Number.isFinite(t)) : []);
         const oldestKept = knownTimes.length >= MAX_VISIT_TIMES ? knownTimes.reduce((m, t) => Math.min(m, t), Infinity) : -Infinity;
         const missing = local.filter((t) => t >= oldestKept && !near(knownTimes, t));
         if (!missing.length) continue;
@@ -147,7 +147,7 @@ export function historyAdapter(ctx: HistoryContext): Adapter {
         const value = visible.get(key) as HistoryValue | undefined;
         if (value) {
           const mine = ctx.visited[url];
-          const times = newestTimes(value.vt);
+          const times = keptTimes(Array.isArray(value.vt) ? value.vt : []);
           const oldestKept = times.length >= MAX_VISIT_TIMES ? times.reduce((m, t) => Math.min(m, t), Infinity) : -Infinity;
           if (mine !== undefined && mine >= oldestKept && mine > (ctx.floors[url] ?? -Infinity) && !near(times, mine)) ctx.due(url);
           continue;

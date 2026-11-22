@@ -1258,3 +1258,30 @@ test("a record holding one time many times over keeps its other times when the p
   const kept = (mac.scopes[s1]!.records[`h:${url}`]!.v as { vt: number[] }).vt;
   assert.deepEqual(kept, [...older.slice(1), repeated, visit]);
 });
+
+test("a remote record's visits a millisecond apart stay apart when the phone adds its own", async () => {
+  const { folder, mac, phone } = await joined();
+  const url = "https://close.example/";
+  const at = START - DAY;
+  const writer = new Clock("foreign0000000000000000000", null, () => folder.now);
+  const ops = [{ k: `h:${url}`, h: writer.tick(), v: { t: "Close", n: 2, vt: [at, at + 1] } }];
+  folder.add(s1, JSON.stringify({ v: 1, kind: "log", device: "foreign0000000000000000000", seq: 1, at: folder.now, ops } satisfies LogFile));
+  folder.now += 15_000;
+  await phone.cycle({ visits: [{ u: url, t: "Close", vt: [at - 1, at + 10], p: P1 }] });
+  await mac.sync([s1]);
+  assert.deepEqual((mac.scopes[s1]!.records[`h:${url}`]!.v as { vt: number[] }).vt, [at - 1, at + 1, at + 10]);
+});
+
+test("a phone visit within a millisecond of a remote record's newest visit isn't due again", async () => {
+  const { folder, phone } = await joined();
+  const url = "https://covered.example/";
+  const at = START - DAY;
+  await phone.cycle({ visits: [{ u: url, t: "Covered", vt: [at + 2], p: P1 }] });
+  folder.now += 60_000;
+  const writer = new Clock("foreign0000000000000000000", null, () => folder.now);
+  const ops = [{ k: `h:${url}`, h: writer.tick(), v: { t: "Covered", n: 2, vt: [at, at + 1] } }];
+  folder.add(s1, JSON.stringify({ v: 1, kind: "log", device: "foreign0000000000000000000", seq: 1, at: folder.now, ops } satisfies LogFile));
+  folder.now += 15_000;
+  const out = await phone.cycle({ visits: null });
+  assert.ok(!out.visitsDue.includes(url), "the remote visit a millisecond away already covers it");
+});
