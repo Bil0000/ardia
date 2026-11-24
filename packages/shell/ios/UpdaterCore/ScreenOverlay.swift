@@ -9,9 +9,9 @@ struct ScreenOverlay {
   let fromSlack: Bool
 
   func passesOver(_ point: CGPoint, displays: [CGRect], windows: [CGRect], margin: CGFloat) -> Bool {
-    guard bounds.contains(point) else { return false }
+    guard fromSlack, bounds.contains(point) else { return false }
     let rings = { (frame: CGRect) in frame.contains(point) && bounds.contains(frame.insetBy(dx: margin, dy: margin)) }
     if layer > Self.menuBarLayer { return displays.contains(where: rings) || windows.contains(where: rings) }
-    return fromSlack && windows.contains { rings($0) && $0.insetBy(dx: -margin, dy: -margin).contains(bounds) }
+    return windows.contains { rings($0) && $0.insetBy(dx: -margin, dy: -margin).contains(bounds) }
   }
 }

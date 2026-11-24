@@ -6,7 +6,7 @@ final class ScreenOverlayTests: XCTestCase {
   let ardia = CGRect(x: 0, y: 120, width: 1000, height: 700)
   let edge = CGPoint(x: 1, y: 400)
 
-  func over(_ bounds: CGRect, layer: Int, fromSlack: Bool = false) -> Bool {
+  func over(_ bounds: CGRect, layer: Int, fromSlack: Bool = true) -> Bool {
     ScreenOverlay(bounds: bounds, layer: layer, fromSlack: fromSlack).passesOver(edge, displays: [display], windows: [ardia], margin: 24)
   }
 
@@ -15,14 +15,19 @@ final class ScreenOverlayTests: XCTestCase {
   }
 
   func testSlacksBorderAroundASharedArdiaWindowIsPassedThrough() {
-    XCTAssertTrue(over(ardia.insetBy(dx: -4, dy: -4), layer: 0, fromSlack: true))
+    XCTAssertTrue(over(ardia.insetBy(dx: -4, dy: -4), layer: 0))
   }
 
   func testAnOrdinaryWindowOverTheEdgeStillBlocks() {
     XCTAssertFalse(over(CGRect(x: 0, y: 0, width: 200, height: 1080), layer: 1000))
     XCTAssertFalse(over(display, layer: 0))
-    XCTAssertFalse(over(ardia.insetBy(dx: -4, dy: -4), layer: 0))
-    XCTAssertFalse(over(CGRect(x: 0, y: 0, width: 1200, height: 1080), layer: 0, fromSlack: true))
+    XCTAssertFalse(over(CGRect(x: 0, y: 0, width: 1200, height: 1080), layer: 0))
+  }
+
+  func testAnotherAppsPanelOverTheEdgeStillBlocks() {
+    XCTAssertFalse(over(display, layer: 1000, fromSlack: false))
+    XCTAssertFalse(over(ardia, layer: 1000, fromSlack: false))
+    XCTAssertFalse(over(ardia.insetBy(dx: -4, dy: -4), layer: 0, fromSlack: false))
   }
 
   func testAnOverlayThatMissesThePointerIsNotPassedThrough() {
