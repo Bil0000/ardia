@@ -24,3 +24,12 @@ test("a peek whose slide passed its final width counts only under the consent pe
   assert.equal(takeDockCounts().sidebar_peeks_past_target, 1);
   assert.equal(takeDockCounts().sidebar_peeks_past_target, 0);
 });
+
+test("a peek opened through another app's screen sharing border is counted, and the count resets once taken", () => {
+  takeDockCounts();
+  noteSidebarPeekFrame(9, true);
+  noteSidebarPeekFrame(9, false);
+  noteSidebarPeekFrame(9, true);
+  assert.equal(takeDockCounts().sidebar_edge_reveals_through_overlay, 2);
+  assert.equal(takeDockCounts().sidebar_edge_reveals_through_overlay, 0);
+});
