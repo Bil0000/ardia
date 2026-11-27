@@ -215,7 +215,7 @@ function SidebarDock({
   const controlsRow = useSidebarControlsRowIn(windowId);
   const moving = useDockMotion((m) => !!m.moving[windowId]);
   const draggingTab = useTabDrag((d) => d.phase === "tab" && d.windowId === windowId);
-  const edge = useRef({ over: false, overlay: false });
+  const edgeOver = useRef(false);
   const arm = useRef(EDGE_ARMED);
   const windowFullScreen = useRef(false);
   windowFullScreen.current = useWindowFullScreen(windowId);
@@ -224,7 +224,7 @@ function SidebarDock({
   pageFullScreen.current = fullscreen;
   const opened = (bounce: boolean) => {
     noteSidebarPeek(bounce);
-    noteSidebarPeekFrame(frame.inset, edge.current.overlay);
+    noteSidebarPeekFrame(frame.inset);
     emptyWindow.opened();
     if (pageFullScreen.current) notePageFullScreenPeek();
     if (windowFullScreen.current) noteFullScreenPeek();
@@ -237,10 +237,10 @@ function SidebarDock({
     fullScreenPeekAt.current = null;
     dismissHoverIn(windowId);
   };
-  const peek = usePeek((!open || fullscreen) && !moving, arc, () => edge.current.over || emptyWindow.held() || peekHeld(windowId), closed, opened);
-  const reveal = () => {
+  const peek = usePeek((!open || fullscreen) && !moving, arc, () => edgeOver.current || emptyWindow.held() || peekHeld(windowId), closed, opened);
+  const reveal = (throughOverlay = false) => {
     emptyWindow.byHand();
-    if (arm.current.armed) latestPeek.current.show();
+    if (arm.current.armed) latestPeek.current[throughOverlay ? "showThroughOverlay" : "show"]();
     else noteSidebarPeekRevealHeldBack();
   };
   const latestPeek = useRef(peek);
@@ -270,17 +270,17 @@ function SidebarDock({
       if (e.screenEdge) noteSidebarScreenEdge(e.screenEdge);
       const at = latestReveal.current;
       if (e.over && e.screenEdge !== "returned" && !edgeEventReveals(at.state, e.point[0], at.right, at.windowWidth, at.band)) return;
-      edge.current = { over: e.over, overlay: e.over && !!e.overlay };
+      edgeOver.current = e.over;
       arm.current = edgeSeen(arm.current, "native", e.over);
       if (e.screenEdge === "crossed") dismissHoverIn(windowId);
-      if (e.over) latestReveal.current.reveal();
+      if (e.over) latestReveal.current.reveal(!!e.overlay);
       else latestPeek.current.hide(e.screenEdge === "crossed");
     });
     watchSidebarEdge(windowId, true, nativeHold, right, holding || draggingTab);
     return () => {
       sub.remove();
       watchSidebarEdge(windowId, false);
-      edge.current = { over: false, overlay: false };
+      edgeOver.current = false;
     };
   }, [windowId, watching, nativeHold, right, holding || draggingTab]);
   useEffect(() => {
@@ -315,7 +315,7 @@ function SidebarDock({
   };
   const leaveStrip = () => {
     arm.current = edgeSeen(arm.current, "strip", false);
-    if (!peek.live) peek.cancelPending(edge.current.over);
+    if (!peek.live) peek.cancelPending(edgeOver.current);
   };
 
   const strip = useRef(false);

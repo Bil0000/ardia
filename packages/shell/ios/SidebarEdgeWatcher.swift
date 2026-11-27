@@ -272,7 +272,8 @@ final class SidebarEdgeWatcher {
     else { return nil }
     let owner = (info[kCGWindowOwnerPID as String] as? pid_t).flatMap { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier }
     let bounds = NSRect(x: cgBounds.minX, y: primary.maxY - cgBounds.maxY, width: cgBounds.width, height: cgBounds.height)
-    return ScreenOverlay(bounds: bounds, layer: layer, fromSlack: owner == ScreenOverlay.slackBundle)
+    let capturable = (info[kCGWindowSharingState as String] as? UInt32).map { $0 != CGWindowSharingType.none.rawValue } ?? true
+    return ScreenOverlay(bounds: bounds, layer: layer, fromSlack: owner == ScreenOverlay.slackBundle, capturable: capturable)
   }
 
   private func isOnDock(_ point: NSPoint) -> Bool {
